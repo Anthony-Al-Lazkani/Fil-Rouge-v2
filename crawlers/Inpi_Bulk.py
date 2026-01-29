@@ -1,4 +1,7 @@
 '''
+Penser à aller autoriser mon application sur: (dure 20 minutes)
+https://developers.epo.org/user/31706/app-detail/ed3afe02-dce8-47ef-a214-fd5a96a82652
+
 Ce script constitue le module principal d’extraction et d’enrichissement
 des données brevets issues de l’API EPO OPS (European Patent Office –
 Open Patent Services), dans le cadre du projet Fil Rouge.

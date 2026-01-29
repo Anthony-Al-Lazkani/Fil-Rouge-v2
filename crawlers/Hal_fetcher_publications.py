@@ -1,5 +1,6 @@
 """
 Responsabilité unique : interroger HAL proprement.
+S'utilise en complément de Hal_Bulk_Publications.py
 """
 
 import requests
