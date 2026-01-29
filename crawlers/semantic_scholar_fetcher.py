@@ -1,7 +1,6 @@
 import requests
 import time
 
-
 class SemanticScholarFetcher:
     def __init__(self, api_key=None, limit=100):
         self.api_key = api_key
