@@ -1,4 +1,10 @@
 # Fil-Rouge
+02-02-2026:
+     Amélioration du crawler Hal pour compléter la base de données
+     -> ajout du doi, des auteurs et du pays de chaque auteur.
+     -> visualisation des 100 premières lignes dans les jsonl pour visualiser l'échantillon
+     Depuis 2021 (Intelligence artificielle -> 1710 articles / Artifical Intelligence -> 8712 articles collectés)
+
 29-01-2026:
      Réinitialisation du repo sur GitHub
      Fusion des différentes branches et déménagement sur l'autre repo
