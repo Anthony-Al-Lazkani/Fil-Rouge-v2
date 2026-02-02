@@ -1,6 +1,8 @@
 """
 Responsabilité unique : interroger HAL proprement.
 S'utilise en complément de Hal_Bulk_Publications.py
+Le point d'entrée est Hal_Bulk_Publications.py
+Lien pour voir les champs: https://api.archives-ouvertes.fr/docs/search/?schema=fields#fields
 """
 
 import requests
@@ -18,17 +20,21 @@ class HALPublicationFetcher:
             "q": query,
             "fq": [
                 f"producedDateY_i:[{start_year} TO *]",
+                "doiId_s:[\"\" TO *]"
             ],
             "rows": self.rows,
             "start": start,
             "wt": "json",
             "fl": (
-                "halId_s,title_s,producedDateY_i,"
-                "doiId_s,authFullName_s,keyword_s,domain_s"
+                "halId_s,title_s,producedDateY_i,doiId_s,docType_s,"
+                "authStructId_i,authStructName_s,authStructType_s,authStructCountry_s,"
+                "authFullName_s,keyword_s,domain_s"
             )
         }
 
         response = requests.get(self.BASE_URL, params=params)
         response.raise_for_status()
         time.sleep(self.pause)
-        return response.json()["response"]["docs"]
+        
+        data = response.json()
+        return data.get("response", {}).get("docs", [])
