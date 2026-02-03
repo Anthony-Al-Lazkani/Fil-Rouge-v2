@@ -1,4 +1,7 @@
 # Fil-Rouge
+03-03-2026:
+     début travail sur elitebook
+
 02-02-2026:
      Amélioration du crawler Hal pour compléter la base de données
      -> ajout du doi, des auteurs et du pays de chaque auteur.
