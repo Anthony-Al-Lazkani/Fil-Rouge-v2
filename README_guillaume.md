@@ -1,6 +1,13 @@
 # Fil-Rouge
 03-03-2026:
-     début travail sur elitebook
+     Choix à faire entre passer par Ontotext/refine ou par faire un script Python qui va nettoyer les doublons et enrichir la BDD
+     Je tente de faire un script qui l'enrichit, cela permet d'avoir quelque chose d'automatique.
+     Ajout de nouvelles tables dans la base:
+          models/organization.py : Le référentiel des entités (pour distinguer Public/Privé).
+          models/author.py : Le référentiel des auteurs (pour le dédoublonnage).
+          models/affiliation.py : La table pivot qui fait le maillage (Qui ? Où ? Quoi ?).
+     services/normalization_service.py : Le moteur qui extrait les données des JSON pour remplir ces tables
+     Après il faudra mettre le tout dans Jena / Fuseki
 
 02-02-2026:
      Amélioration du crawler Hal pour compléter la base de données

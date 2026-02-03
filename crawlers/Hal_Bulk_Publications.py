@@ -9,11 +9,13 @@ Commencer par lancer le serveur:
     => va générer un fichier 'hal_publications.jsonl' dans /data/
     => va enregistrer les lignes dans la database.db
  
-QUERY: 'intelligence artificielle' + "artificial intelligence" from 2021
+QUERY: 'intelligence artificielle' + "artificial intelligence" from 2021 => environ 10 000 articles
 
 EXPLICATIONS
     Fonctionne en complément avec Hal_fetcher_publications.py
     Logique métier + écriture fichier
+    Va récupérer les articles et les intégrer dans la table "RESEARCH_ITEM" de la database.db
+    On génère un json pour visualiser les données mais on ne fait que les 100 premiers, tout le reste va bien dans la database
 
 OBSERVATIONS:
     Il n'y a pas de données country renseignées sur HAL - l'exemple exposé ci-dessous doit être une exception
