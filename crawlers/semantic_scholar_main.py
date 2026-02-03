@@ -36,7 +36,7 @@ from schemas.research_item import ResearchItemCreate
 from schemas.source import SourceCreate
 
 # ========== CONFIGURATION ==========
-"""QUERIES = [
+QUERIES = [
     "artificial intelligence neural networks",
     "artificial intelligence natural language processing",
     "artificial intelligence computer vision",
@@ -45,11 +45,13 @@ from schemas.source import SourceCreate
     "artificial intelligence explainable AI",
     "artificial intelligence generative AI",
     "artificial intelligence machine learning",
-]"""
+]
+"""
 QUERIES = [
     "artificial intelligence",
 ]
-YEARS = list(range(2026, 2027))  # 2018 à 2026
+"""
+YEARS = list(range(2022, 2027))  # 2018 à 2026
 MAX_PER_YEAR = 2500
 API_KEY = "BJxxqhUWGI2QmwHvezhLqasQc0I3Sq2e5HrdxnCi"
 
