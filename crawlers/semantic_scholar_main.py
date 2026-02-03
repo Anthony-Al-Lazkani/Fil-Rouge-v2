@@ -49,7 +49,7 @@ from schemas.source import SourceCreate
 QUERIES = [
     "artificial intelligence",
 ]
-YEARS = list(range(2026, 2027))  # 2018 à 2026
+YEARS = list(range(2020, 2027))  # 2018 à 2026
 MAX_PER_YEAR = 2500
 API_KEY = "BJxxqhUWGI2QmwHvezhLqasQc0I3Sq2e5HrdxnCi"
 
