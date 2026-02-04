@@ -9,11 +9,13 @@ Commencer par lancer le serveur:
     => va générer un fichier 'hal_publications.jsonl' dans /data/
     => va enregistrer les lignes dans la database.db
  
-QUERY: 'intelligence artificielle' + "artificial intelligence" from 2021
+QUERY: 'intelligence artificielle' + "artificial intelligence" from 2021 => environ 10 000 articles
 
 EXPLICATIONS
     Fonctionne en complément avec Hal_fetcher_publications.py
     Logique métier + écriture fichier
+    Va récupérer les articles et les intégrer dans la table "RESEARCH_ITEM" de la database.db
+    On génère un json pour visualiser les données mais on ne fait que les 100 premiers, tout le reste va bien dans la database
 
 OBSERVATIONS:
     Il n'y a pas de données country renseignées sur HAL - l'exemple exposé ci-dessous doit être une exception
@@ -31,7 +33,9 @@ from pathlib import Path
 from database import get_session, engine
 from models.research_item import ResearchItem # Importez vos modèles
 from models.source import Source
-from sqlalchemy import delete
+from sqlalchemy import delete 
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, select
 
 from services.research_item_service import ResearchItemService
 from services.source_service import SourceService
@@ -137,6 +141,7 @@ with open("data/hal_publications.jsonl", "w", encoding="utf-8") as f:
                 research_item = ResearchItemCreate(
                     source_id=hal.id,
                     external_id=doc.get("halId_s"),
+                    doi=doc.get("doiId_s"),
                     type=doc.get("docType_s") or "article",
                     title=title,
                     year=doc.get("producedDateY_i"),
@@ -158,8 +163,14 @@ with open("data/hal_publications.jsonl", "w", encoding="utf-8") as f:
 
                 try:
                     item_service.create(session, research_item)
-                except Exception:
-                    pass
+                except IntegrityError:
+                    # C'est un doublon (DOI déjà présent)
+                    session.rollback()
+                    # On passe silencieusement au suivant
+                except Exception as e:
+                    # C'est une autre erreur (problème réseau, structure, etc.)
+                    session.rollback()
+                    print(f"Erreur inattendue : {e}")
                 
                 count += 1
                 if count >= MAX_RECORDS_DB:
