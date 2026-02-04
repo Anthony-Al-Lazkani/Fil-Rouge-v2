@@ -27,7 +27,7 @@ class SemanticScholarFetcher:
             "query": query,
             "offset": offset,
             "limit": self.limit,
-            "fields": "paperId,title,abstract,year,authors,citationCount,venue,fieldsOfStudy,externalIds,url"
+            "fields": "paperId,title,abstract,year,authors,citationCount,venue,fieldsOfStudy,externalIds,url,references"
         }
 
         # Gestion du filtre année

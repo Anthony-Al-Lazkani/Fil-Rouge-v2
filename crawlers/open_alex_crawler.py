@@ -68,6 +68,7 @@ for page in pager:
             year=work.get('publication_year'),
             is_retracted=work.get('is_retracted', False),
             is_open_access=loc.get('is_oa', False),
+            references=work.get('references_works', []),
             metrics={"topics": [t['display_name'] for t in work.get('topics', [])], "authors": authors},
             raw=work  # store full raw record
         )

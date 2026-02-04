@@ -201,12 +201,16 @@ with open(output_file, "a", encoding="utf-8") as f:
                                 "citation_count": paper.get("citationCount", 0),
                                 "url": paper.get("url"),
                                 "doi": paper.get("externalIds", {}).get("DOI"),
-                                "abstract": paper.get("abstract")
+                                "abstract": paper.get("abstract"),
+                                "references": paper.get("references", [])
                             },
                             "authors": [
                                 {
                                     "id": author.get("authorId"),
-                                    "name": author.get("name")
+                                    "externalIds":author.get("externalIds", {}),
+                                    "name": author.get("name"),
+                                    "affiliations": author.get("affiliations"),
+                                    "hIndex":author.get("hIndex"),
                                 }
                                 for author in paper.get("authors", [])
                             ],
@@ -224,8 +228,10 @@ with open(output_file, "a", encoding="utf-8") as f:
                             title=paper.get("title"),
                             year=paper.get("year"),
                             type="paper",
+                            abstract=paper.get("abstract"),
                             is_retracted=False,
                             is_open_access=paper.get("isOpenAccess"),
+                            references=paper.get("references", []),
                             metrics={
                                 "citation_count": paper.get("citationCount", 0),
                                 "venue": paper.get("venue"),

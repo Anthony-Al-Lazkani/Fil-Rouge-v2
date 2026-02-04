@@ -28,7 +28,7 @@ class HALPublicationFetcher:
             "fl": (
                 "halId_s,title_s,producedDateY_i,doiId_s,docType_s,"
                 "structId_i,structName_s,structType_s,structCountry_s,"
-                "authFullName_s,keyword_s,domain_s"
+                "authFullName_s,keyword_s,domain_s,abstract_s,"
             )
         }
 

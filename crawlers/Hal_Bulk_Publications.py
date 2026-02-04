@@ -124,6 +124,7 @@ with open("data/hal_publications.jsonl", "w", encoding="utf-8") as f:
                             "type": doc.get("docType_s"),
                             "title": title,
                             "year": doc.get("producedDateY_i"),
+                            "abstract": doc.get("abstract_s"),
                             "domains": doc.get("domain_s", []),
                             "keywords": doc.get("keyword_s", []),
                         },
@@ -145,6 +146,7 @@ with open("data/hal_publications.jsonl", "w", encoding="utf-8") as f:
                     type=doc.get("docType_s") or "article",
                     title=title,
                     year=doc.get("producedDateY_i"),
+                    abstract=doc.get("abstract_s"),
                     is_retracted=False,
                     metrics={
                         "doi": doc.get("doiId_s"),                       
