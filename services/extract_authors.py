@@ -51,12 +51,23 @@ def run_author_extraction():
             
             author_names = metrics.get("authors", [])
 
+            
             for raw_name in author_names:
                 if not raw_name: continue
                 
-                # ÉTAPE CLÉ : On génère l'empreinte pour la comparaison
-                fingerprint = normalize_name(raw_name)
+                # --- AJOUT DE LA VÉRIFICATION ---
+                # Si raw_name est un dictionnaire (cas Semantic Scholar), on extrait le champ "name"
+                if isinstance(raw_name, dict):
+                    raw_name = raw_name.get("name", "")
                 
+                # Si après extraction c'est toujours vide ou non exploitable, on passe
+                if not raw_name or not isinstance(raw_name, str):
+                    continue
+                # --------------------------------
+                
+                # Le reste du script reste identique
+                fingerprint = normalize_name(raw_name)
+
                 # Si le nom est vide après nettoyage (ex: "."), on ignore
                 if not fingerprint: continue
 

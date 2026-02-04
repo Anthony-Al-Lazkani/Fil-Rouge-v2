@@ -241,10 +241,18 @@ with open(output_file, "a", encoding="utf-8") as f:
                             item_service.create(session, research_item)
                             db_inserted_year += 1
                             total_db_inserted += 1
-                        except Exception:
-                            # Doublon détecté par contrainte UNIQUE en DB
+                        except IntegrityError:
+                            # CRUCIAL : On réinitialise la session après un doublon DOI
+                            session.rollback() 
                             db_duplicates_year += 1
                             total_db_duplicates += 1
+                        except Exception as e:
+                            session.rollback() # Obligatoire aussi ici !
+                            # On ne compte pas ça comme un doublon, mais on affiche l'erreur
+                            print(f"Erreur technique (hors doublon) : {e}")
+
+
+
 
                         # Affichage toutes les 100 nouveaux
                         if count % 100 == 0:
