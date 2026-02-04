@@ -45,6 +45,7 @@ source_service = SourceService()
 item_service = ResearchItemService()
 session = next(get_session())
 
+print('aaaa')
 
 # --- ÉTAPE 0 : NETTOYAGE DE LA BASE DE DONNÉES ---
 print("Nettoyage de la base de données en cours...")
@@ -139,6 +140,7 @@ with open("data/hal_publications.jsonl", "w", encoding="utf-8") as f:
                 research_item = ResearchItemCreate(
                     source_id=hal.id,
                     external_id=doc.get("halId_s"),
+                    doi=doc.get("doiId_s"),
                     type=doc.get("docType_s") or "article",
                     title=title,
                     year=doc.get("producedDateY_i"),
