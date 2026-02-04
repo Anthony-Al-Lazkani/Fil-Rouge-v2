@@ -12,8 +12,6 @@ class Author(SQLModel, table=True):
     # unique=True sur les external_id => la base refusera techniquement de créer deux fois le même laboratoire ou le même auteur, même si vous les croisez dans des sources différentes
     
     full_name: str = Field(index=True)
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
     
     # Métriques simplifiées pour le profilage
     publication_count: int = Field(default=0)

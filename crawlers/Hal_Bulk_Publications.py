@@ -33,7 +33,9 @@ from pathlib import Path
 from database import get_session, engine
 from models.research_item import ResearchItem # Importez vos modèles
 from models.source import Source
-from sqlalchemy import delete
+from sqlalchemy import delete 
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, select
 
 from services.research_item_service import ResearchItemService
 from services.source_service import SourceService
@@ -45,7 +47,6 @@ source_service = SourceService()
 item_service = ResearchItemService()
 session = next(get_session())
 
-print('aaaa')
 
 # --- ÉTAPE 0 : NETTOYAGE DE LA BASE DE DONNÉES ---
 print("Nettoyage de la base de données en cours...")
@@ -162,8 +163,14 @@ with open("data/hal_publications.jsonl", "w", encoding="utf-8") as f:
 
                 try:
                     item_service.create(session, research_item)
-                except Exception:
-                    pass
+                except IntegrityError:
+                    # C'est un doublon (DOI déjà présent)
+                    session.rollback()
+                    # On passe silencieusement au suivant
+                except Exception as e:
+                    # C'est une autre erreur (problème réseau, structure, etc.)
+                    session.rollback()
+                    print(f"Erreur inattendue : {e}")
                 
                 count += 1
                 if count >= MAX_RECORDS_DB:

@@ -1,3 +1,7 @@
+'définit la structure de la table ResearchItem (réceptacle des crawler académiques)'
+'Attention: doi : unique=true'
+
+
 from typing import Optional, Dict
 from datetime import datetime
 from sqlmodel import SQLModel, Field
@@ -7,7 +11,7 @@ class ResearchItem(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     source_id: int  # FK to Source table
     external_id: str  # ID from the source (OpenAlex, arXiv, etc.)
-    doi: Optional[str]
+    doi: Optional[str] = Field(default=None, unique=True, index=True)
     title: Optional[str]
     year: Optional[int]
     type: Optional[str]  # paper, preprint, article

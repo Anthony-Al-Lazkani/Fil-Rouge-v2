@@ -1,3 +1,8 @@
+'''
+A relancer à chaque modif de la structure de la BDD
+uv run python -m database.initialize
+'''
+
 from sqlmodel import create_engine, SQLModel
 from models.source import Source
 from models.research_item import ResearchItem

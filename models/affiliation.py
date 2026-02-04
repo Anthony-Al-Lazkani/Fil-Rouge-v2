@@ -9,5 +9,5 @@ class Affiliation(SQLModel, table=True):
     
     # Les trois piliers de la relation
     author_id: int = Field(foreign_key="author.id", index=True)
-    organization_id: int = Field(foreign_key="organization.id", index=True)
+    organization_id: Optional[int] = Field(default=None, foreign_key="organization.id", nullable=True)
     research_item_id: int = Field(foreign_key="researchitem.id", index=True)

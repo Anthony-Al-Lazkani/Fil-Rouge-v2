@@ -34,6 +34,7 @@ from services.research_item_service import ResearchItemService
 from services.source_service import SourceService
 from schemas.research_item import ResearchItemCreate
 from schemas.source import SourceCreate
+from sqlalchemy.exc import IntegrityError #ajout de cette ligne pour gérer les erreurs vis-à-vis de l'insertion en DB en cas d'unicité des DOI
 
 # ========== CONFIGURATION ==========
 """QUERIES = [
@@ -49,7 +50,7 @@ from schemas.source import SourceCreate
 QUERIES = [
     "artificial intelligence",
 ]
-YEARS = list(range(2026, 2027))  # 2018 à 2026
+YEARS = list(range(2021, 2026))  # 2018 à 2026
 MAX_PER_YEAR = 2500
 API_KEY = "BJxxqhUWGI2QmwHvezhLqasQc0I3Sq2e5HrdxnCi"
 
