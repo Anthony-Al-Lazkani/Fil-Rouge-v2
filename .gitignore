@@ -11,3 +11,6 @@ database.db
 
 # OS
 .DS_Store
+
+# CSV files
+*.csv

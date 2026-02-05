@@ -34,6 +34,7 @@ from services.research_item_service import ResearchItemService
 from services.source_service import SourceService
 from schemas.research_item import ResearchItemCreate
 from schemas.source import SourceCreate
+from sqlalchemy.exc import IntegrityError #ajout de cette ligne pour gérer les erreurs vis-à-vis de l'insertion en DB en cas d'unicité des DOI
 
 # ========== CONFIGURATION ==========
 """QUERIES = [
@@ -49,7 +50,11 @@ from schemas.source import SourceCreate
 QUERIES = [
     "artificial intelligence",
 ]
+<<<<<<< Anthony
 YEARS = list(range(2020, 2027))  # 2018 à 2026
+=======
+YEARS = list(range(2021, 2026))  # 2018 à 2026
+>>>>>>> brouillon01
 MAX_PER_YEAR = 2500
 API_KEY = "BJxxqhUWGI2QmwHvezhLqasQc0I3Sq2e5HrdxnCi"
 
@@ -240,10 +245,18 @@ with open(output_file, "a", encoding="utf-8") as f:
                             item_service.create(session, research_item)
                             db_inserted_year += 1
                             total_db_inserted += 1
-                        except Exception:
-                            # Doublon détecté par contrainte UNIQUE en DB
+                        except IntegrityError:
+                            # CRUCIAL : On réinitialise la session après un doublon DOI
+                            session.rollback() 
                             db_duplicates_year += 1
                             total_db_duplicates += 1
+                        except Exception as e:
+                            session.rollback() # Obligatoire aussi ici !
+                            # On ne compte pas ça comme un doublon, mais on affiche l'erreur
+                            print(f"Erreur technique (hors doublon) : {e}")
+
+
+
 
                         # Affichage toutes les 100 nouveaux
                         if count % 100 == 0:

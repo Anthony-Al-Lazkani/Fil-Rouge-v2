@@ -5,6 +5,7 @@ from pydantic import BaseModel
 class ResearchItemCreate(BaseModel):
     source_id: int
     external_id: str
+    doi: Optional[str] = None
     type: str  # "article", "company", etc.
     title: Optional[str]
     year: Optional[int]
