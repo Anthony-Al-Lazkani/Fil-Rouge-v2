@@ -48,19 +48,6 @@ item_service = ResearchItemService()
 session = next(get_session())
 
 
-# --- ÉTAPE 0 : NETTOYAGE DE LA BASE DE DONNÉES ---
-print("Nettoyage de la base de données en cours...")
-try:
-    # On vide la table des items pour repartir de zéro
-    session.execute(delete(ResearchItem))
-    session.commit()
-    print("Base de données réinitialisée.")
-except Exception as e:
-    session.rollback()
-    print(f"Erreur lors du nettoyage : {e}")
-
-
-
 # Création de la source HAL (ou récupération si elle existe encore)
 hal = source_service.create(
     session,
@@ -76,7 +63,7 @@ QUERIES = [
     '"intelligence artificielle"',
     '"artificial intelligence"',
 ]
-START_YEAR = 2021
+START_YEAR = 2020
 MAX_RECORDS_DB = 10_000 # Limite pour l'insertion dans la BDD
 MAX_RECORDS_JSON = 100  # Limite pour la visualisation
 

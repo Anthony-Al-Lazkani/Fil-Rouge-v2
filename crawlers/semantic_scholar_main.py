@@ -50,7 +50,11 @@ from sqlalchemy.exc import IntegrityError #ajout de cette ligne pour gérer les 
 QUERIES = [
     "artificial intelligence",
 ]
+<<<<<<< Anthony
+YEARS = list(range(2020, 2027))  # 2018 à 2026
+=======
 YEARS = list(range(2021, 2026))  # 2018 à 2026
+>>>>>>> brouillon01
 MAX_PER_YEAR = 2500
 API_KEY = "BJxxqhUWGI2QmwHvezhLqasQc0I3Sq2e5HrdxnCi"
 
