@@ -2,12 +2,16 @@
 Pour avoir mieux qu'une liste de noms
 '''
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship
-from models import ResearchItem
+from models.authorResearchItem import AuthorResearchItem
+
+if TYPE_CHECKING:
+    from models.research_item import ResearchItem
 
 
 class Author(SQLModel, table=True):
+    __tablename__ = 'author'
     id: Optional[int] = Field(default=None, primary_key=True)
     # Identifiants pivots internationaux (ORCID, IdHAL, etc.)
     external_id: Optional[str] = Field(default=None, index=True, unique=True, description="ID externe (ORCID, IdHAL, etc.)")
@@ -27,4 +31,4 @@ class Author(SQLModel, table=True):
     # Liste des articles scientifiques écrits par cet auteur
     # - back_populates: Synchronise avec la relation 'authors' dans ResearchItem
     # - link_model: Utilise la table de jointure AuthorResearchItem pour stocker les associations
-    articles: List["ResearchItem"] = Relationship(back_populates="authors",link_model="AuthorResearchItem")
+    articles: List["AuthorResearchItem"] = Relationship(back_populates="author")

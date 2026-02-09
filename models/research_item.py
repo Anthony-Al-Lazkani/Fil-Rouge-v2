@@ -1,13 +1,17 @@
 'définit la structure de la table ResearchItem (réceptacle des crawler académiques)'
 'Attention: doi : unique=true'
 
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, TYPE_CHECKING
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column, JSON, Text
-from models import Author
+from models.authorResearchItem import AuthorResearchItem
+
+if TYPE_CHECKING:
+    from models.author import Author
 
 class ResearchItem(SQLModel, table=True):
+    __tablename__ = "research_item"
     id: Optional[int] = Field(default=None, primary_key=True)
     source_id: int  # FK to Source table
     external_id: str  # ID from the source (OpenAlex, arXiv, etc.)
@@ -25,4 +29,4 @@ class ResearchItem(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
-    authors: List["Author"] = Relationship(back_populates="research_items",link_model="AuthorResearchItem")
+    authors: List["AuthorResearchItem"] = Relationship(back_populates="research_item")
