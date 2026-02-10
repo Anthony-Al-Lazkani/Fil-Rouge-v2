@@ -60,13 +60,15 @@ du projet Fil Rouge.
 '''
 
 
-from Inpi_fetcher import InpiFetcher
+from .Inpi_fetcher import InpiFetcher
 import xml.etree.ElementTree as ET
+import requests
 import json
 import time
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+from sqlalchemy.exc import IntegrityError
 
 # -------------------------
 # Initialisation
@@ -80,6 +82,13 @@ fetcher = InpiFetcher(
 )
 
 Path("data").mkdir(exist_ok=True)
+
+
+# --- CONFIGURATION ---
+QUERIES = ['ti="artificial intelligence"', 'ti="intelligence artificielle"']
+MAX_RECORDS_DB = 10_000
+MAX_RECORDS_JSON = 100
+
 
 
 # -------------------------
@@ -134,18 +143,31 @@ def parse_biblio(xml_text):
         "cpc": [],
     }
 
-    for t in root.findall(".//ex:invention-title", ns):
-        if t.attrib.get("{http://www.w3.org/XML/1998/namespace}lang") == "en":
+    titles = root.findall(".//ex:invention-title", ns)
+    for t in titles:
+        lang = t.attrib.get("{http://www.w3.org/XML/1998/namespace}lang")
+        if lang == "en":
             data["title"] = t.text
+            break
+    
+    if not data["title"] and titles:
+        data["title"] = titles[0].text
+
+    # Nettoyage des noms (suppression des espaces doubles et caractères bizarres)
+    for a in root.findall(".//ex:applicant//ex:name", ns):
+        if a.text:
+            name = " ".join(a.text.split())
+            if name not in data["applicants"]:
+                data["applicants"].append(name)
+
+    for i in root.findall(".//ex:inventor//ex:name", ns):
+        if i.text:
+            name = " ".join(i.text.split())
+            if name not in data["inventors"]:
+                data["inventors"].append(name)
 
     for c in root.findall(".//ex:classification-ipcr/ex:text", ns):
         data["cpc"].append(c.text.strip())
-
-    for a in root.findall(".//ex:applicant//ex:name", ns):
-        data["applicants"].append(a.text)
-
-    for i in root.findall(".//ex:inventor//ex:name", ns):
-        data["inventors"].append(i.text)
 
     return data
 
@@ -218,24 +240,42 @@ with open(output_path, "a", encoding="utf-8") as out:
             if docdb_id in existing_docdb_ids:
                 continue
 
-            biblio_xml = fetcher.get_biblio_docdb(docdb_id)
-            if not biblio_xml:
+            try:
+                # Récupération des données XML
+                biblio_xml = fetcher.get_biblio_docdb(docdb_id)
+                if not biblio_xml:
+                    continue
+                
+                abstract_xml = fetcher.get_abstract_docdb(docdb_id)
+
+                # Construction du dictionnaire (à l'intérieur du try)
+                record = {
+                    "source": "EPO OPS",
+                    "family_id": ref["family_id"],
+                    "docdb_id": docdb_id,
+                    "kind": ref.get("kind"),
+                    **parse_biblio(biblio_xml),
+                    "abstract": parse_abstract(abstract_xml),
+                }
+
+                # Écriture (à l'intérieur du try)
+                out.write(json.dumps(record, ensure_ascii=False) + "\n")
+                existing_docdb_ids.add(docdb_id)
+
+                # Pause préventive pour le throttling
+                time.sleep(1.5)
+
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 403:
+                    print(f"[ALERTE] Quota atteint ou accès refusé pour {docdb_id}. Pause de 30 secondes...")
+                    time.sleep(30)
+                    continue 
+                else:
+                    print(f"[ERREUR HTTP] {e}")
+                    continue
+            except Exception as e:
+                print(f"[ERREUR INATTENDUE] {e}")
                 continue
-
-            abstract_xml = fetcher.get_abstract_docdb(docdb_id)
-
-            record = {
-                "source": "EPO OPS",
-                "family_id": ref["family_id"],
-                "docdb_id": docdb_id,
-                **parse_biblio(biblio_xml),
-                "abstract": parse_abstract(abstract_xml),
-            }
-
-            out.write(json.dumps(record, ensure_ascii=False) + "\n")
-            existing_docdb_ids.add(docdb_id)
-
-            time.sleep(0.2)
 
         start += STEP
         time.sleep(1)
