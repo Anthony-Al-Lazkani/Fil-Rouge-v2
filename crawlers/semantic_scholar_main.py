@@ -34,7 +34,9 @@ from services.research_item_service import ResearchItemService
 from services.source_service import SourceService
 from schemas.research_item import ResearchItemCreate
 from schemas.source import SourceCreate
-from sqlalchemy.exc import IntegrityError #ajout de cette ligne pour gérer les erreurs vis-à-vis de l'insertion en DB en cas d'unicité des DOI
+from sqlalchemy.exc import (
+    IntegrityError,
+)  # ajout de cette ligne pour gérer les erreurs vis-à-vis de l'insertion en DB en cas d'unicité des DOI
 
 # ========== CONFIGURATION ==========
 """QUERIES = [
@@ -50,11 +52,7 @@ from sqlalchemy.exc import IntegrityError #ajout de cette ligne pour gérer les 
 QUERIES = [
     "artificial intelligence",
 ]
-<<<<<<< Anthony
-YEARS = list(range(2020, 2027))  # 2018 à 2026
-=======
-YEARS = list(range(2021, 2026))  # 2018 à 2026
->>>>>>> brouillon01
+YEARS = list(range(2020, 2027))  # 2020 à 2026
 MAX_PER_YEAR = 2500
 API_KEY = "BJxxqhUWGI2QmwHvezhLqasQc0I3Sq2e5HrdxnCi"
 
@@ -111,13 +109,13 @@ semantic_scholar = source_service.create(
     SourceCreate(
         name="semantic_scholar",
         type="academic",
-        base_url="https://api.semanticscholar.org/"
-    )
+        base_url="https://api.semanticscholar.org/",
+    ),
 )
 
 # Créer le dossier data
 data_path = Path(__file__).parent.parent / "data"
-'''data_path.mkdir(parents=True, exist_ok=True)'''
+"""data_path.mkdir(parents=True, exist_ok=True)"""
 
 # Charger les IDs existants
 existing_ids = load_existing_ids()
@@ -160,10 +158,7 @@ with open(output_file, "a", encoding="utf-8") as f:
                 try:
                     # Fetch avec filtre par année exacte
                     papers = fetcher.fetch(
-                        query,
-                        year_min=year,
-                        year_max=year,
-                        offset=offset
+                        query, year_min=year, year_max=year, offset=offset
                     )
 
                     if not papers:
@@ -205,39 +200,62 @@ with open(output_file, "a", encoding="utf-8") as f:
                                 "citation_count": paper.get("citationCount", 0),
                                 "url": paper.get("url"),
                                 "doi": paper.get("externalIds", {}).get("DOI"),
-                                "abstract": paper.get("abstract")
+                                "abstract": paper.get("abstract"),
+                                "language": paper.get("language"),
+                                "type": paper.get("type", "paper"),
                             },
                             "authors": [
                                 {
                                     "id": author.get("authorId"),
-                                    "name": author.get("name")
+                                    "name": author.get("name"),
+                                    "orcid": author.get("orcid"),
+                                    "affiliations": author.get("affiliations", []),
                                 }
                                 for author in paper.get("authors", [])
                             ],
-                            "fields_of_study": paper.get("fieldsOfStudy", [])
+                            "fields_of_study": paper.get("fieldsOfStudy", []),
                         }
 
                         # Écrire dans le fichier JSONL
                         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
                         # --- B. Insertion en base de données ---
+                        authors_for_db = [
+                            {
+                                "author_id": author.get("authorId"),
+                                "display_name": author.get("name"),
+                                "orcid": author.get("orcid"),
+                                "affiliations": author.get("affiliations", []),
+                                "roles": ["first_author"]
+                                if idx == 0
+                                else ["co_author"],
+                            }
+                            for idx, author in enumerate(paper.get("authors", []))
+                        ]
+
                         research_item = ResearchItemCreate(
                             source_id=semantic_scholar.id,
                             external_id=paper_id,
                             doi=paper.get("externalIds", {}).get("DOI"),
                             title=paper.get("title"),
+                            abstract=paper.get("abstract"),
                             year=paper.get("year"),
-                            type="paper",
+                            type=paper.get("type", "paper"),
+                            language=paper.get("language"),
                             is_retracted=False,
                             is_open_access=paper.get("isOpenAccess"),
+                            url=paper.get("url"),
+                            citation_count=paper.get("citationCount", 0),
+                            keywords=[],  # Semantic Scholar doesn't provide keywords directly
+                            topics=paper.get("fieldsOfStudy", []),
                             metrics={
                                 "citation_count": paper.get("citationCount", 0),
                                 "venue": paper.get("venue"),
-                                "fields_of_study": paper.get("fieldsOfStudy", []),
-                                "authors": paper.get("authors", []),
-                                "url": paper.get("url")
+                                "authors": authors_for_db,
+                                "url": paper.get("url"),
+                                "external_ids": paper.get("externalIds", {}),
                             },
-                            raw=paper
+                            raw=paper,
                         )
 
                         # Gestion des doublons en DB
@@ -247,24 +265,23 @@ with open(output_file, "a", encoding="utf-8") as f:
                             total_db_inserted += 1
                         except IntegrityError:
                             # CRUCIAL : On réinitialise la session après un doublon DOI
-                            session.rollback() 
+                            session.rollback()
                             db_duplicates_year += 1
                             total_db_duplicates += 1
                         except Exception as e:
-                            session.rollback() # Obligatoire aussi ici !
+                            session.rollback()  # Obligatoire aussi ici !
                             # On ne compte pas ça comme un doublon, mais on affiche l'erreur
                             print(f"Erreur technique (hors doublon) : {e}")
-
-
-
 
                         # Affichage toutes les 100 nouveaux
                         if count % 100 == 0:
                             elapsed = time.time() - start_time
-                            print(f"   {year} | {count:,} nouveaux | "
-                                  f"{elapsed / 60:.0f}:{elapsed % 60:02.0f} | "
-                                  f"{duplicates_year} doublons fichier | "
-                                  f"{db_inserted_year} en DB | offset: {offset}")
+                            print(
+                                f"   {year} | {count:,} nouveaux | "
+                                f"{elapsed / 60:.0f}:{elapsed % 60:02.0f} | "
+                                f"{duplicates_year} doublons fichier | "
+                                f"{db_inserted_year} en DB | offset: {offset}"
+                            )
 
                     # Passer au prochain batch
                     offset += fetcher.limit
@@ -278,9 +295,11 @@ with open(output_file, "a", encoding="utf-8") as f:
                     time.sleep(1)
                     continue
 
-            print(f"{year} terminé : {count:,} nouveaux | "
-                  f"{duplicates_year} doublons fichier | "
-                  f"{db_inserted_year} insérés en DB")
+            print(
+                f"{year} terminé : {count:,} nouveaux | "
+                f"{duplicates_year} doublons fichier | "
+                f"{db_inserted_year} insérés en DB"
+            )
 
 # ========== RÉSUMÉ FINAL ==========
 elapsed = time.time() - start_time
