@@ -6,6 +6,9 @@ uv run python -m database.initialize
 from sqlmodel import create_engine, SQLModel
 from models.source import Source
 from models.research_item import ResearchItem
+from models.author import Author
+from models.affiliation import Affiliation
+from models.organization import Organization
 
 # Arguments needed in order to create the engine
 FILENAME = "database.db"
