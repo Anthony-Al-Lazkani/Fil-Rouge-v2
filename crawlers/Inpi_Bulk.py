@@ -1,89 +1,104 @@
 '''
-Penser à aller autoriser mon application sur: (dure 20 minutes)
-https://developers.epo.org/user/31706/app-detail/ed3afe02-dce8-47ef-a214-fd5a96a82652
-
 Ce script constitue le module principal d’extraction et d’enrichissement
 des données brevets issues de l’API EPO OPS (European Patent Office –
 Open Patent Services), dans le cadre du projet Fil Rouge.
 
-Objectif général
-----------------
-Interroger de manière incrémentale et robuste l’API EPO OPS afin de :
-- rechercher des brevets correspondant à une requête CQL donnée,
-- extraire les identifiants de publication de type DOCDB,
-- enrichir chaque publication avec ses métadonnées bibliographiques
-  (biblio) et son résumé (abstract),
-- stocker les résultats sous forme de lignes JSON (format JSONL),
-  exploitables ultérieurement pour des traitements de type analyse,
-  indexation ou graphe de connaissances.
 
-Fonctionnement général
-----------------------
-Le script fonctionne selon une logique de pagination contrôlée, imposée
-par les contraintes de l’API EPO OPS :
+USAGE:
+    Penser à autoriser l'application sur le portail développeur EPO (validité 20 min).
+    https://developers.epo.org/user/31706/app-detail/ed3afe02-dce8-47ef-a214-fd5a96a82652
 
-1. La recherche est effectuée par blocs successifs (Range 1–100, 101–200,
-   etc.), afin de respecter les limites de requêtes.
-2. À chaque itération :
-   - les références de publication sont extraites depuis la réponse XML
-     du endpoint /published-data/search ;
-   - les identifiants DOCDB (country + doc-number) sont construits ;
-   - les publications déjà présentes dans le fichier de sortie sont
-     ignorées afin d’éviter les doublons ;
-   - les endpoints /biblio et /abstract sont appelés pour enrichir les
-     données.
-3. Les résultats sont ajoutés progressivement (append) dans un fichier
-   JSONL unique, permettant une reprise ultérieure du script sans perte
-   de données.
+    Lancer le serveur : 
+        uv run uvicorn main:app --reload
+    Puis : 
+        uv run python -m crawlers.Inpi_Bulk
 
-Contraintes et précautions
---------------------------
-- Le script respecte les quotas de l’API OPS en introduisant des pauses
-  entre les requêtes et entre les pages de résultats.
-- Les erreurs HTTP (403, 404, etc.) peuvent survenir en cas de dépassement
-  de quota ou de documents non accessibles ; le script est conçu pour
-  pouvoir être relancé après interruption.
-- Le format JSONL garantit une écriture incrémentale et une compatibilité
-  avec les autres sources du projet (ArXiv, HAL, Crunchbase).
+    => va générer un fichier 'epo_ai_brevets.jsonl' dans /data/
+    => va enregistrer les lignes dans la database.db
 
-Responsabilités
----------------
-Ce script assure exclusivement :
-- la logique de collecte,
-- la gestion de la pagination,
-- l’enrichissement des données brevets,
-- la persistance incrémentale des résultats.
+QUERY: 'ti=artificial intelligence' 
+       Le script interroge l'API EPO OPS de manière incrémentale par blocs de 100.
 
-Il ne réalise aucun traitement analytique ou sémantique avancé, ces
-traitements étant destinés à être effectués dans des modules ultérieurs
-du projet Fil Rouge.
+EXPLICATIONS:
+    Fonctionne en complément avec Inpi_fetcher.py.
+    Logique métier + écriture fichier + insertion DB.
+    Récupère les brevets (type 'patent'), extrait la bibliographie et les résumés.
+    Intègre les données dans la table 'RESEARCH_ITEM' de la database.db.
+    Génère un JSONL pour la visualisation (limité aux 100 premiers de la session), 
+    tandis que l'intégralité (jusqu'à 10 000) est injectée en base de données.
+
+OBSERVATIONS:
+    Les brevets n'ont pas de DOI ; l'identifiant DOCDB (ex: US20260038635) fait office de clé unique.
+    Respecte les quotas OPS (Fair Use Policy) via un throttling strict (pauses de 1.5s).
+    Le 'family_id' permet de regrouper les brevets d'une même invention.
 '''
 
-
-from Inpi_fetcher import InpiFetcher
-import xml.etree.ElementTree as ET
 import json
 import time
+import os
+import requests
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from dotenv import load_dotenv
-import os
+from sqlalchemy.exc import IntegrityError
+
+from .Inpi_fetcher import InpiFetcher
+from database import get_session
+from services.research_item_service import ResearchItemService
+from services.source_service import SourceService
+from schemas.research_item import ResearchItemCreate
+from schemas.source import SourceCreate
+
 
 # -------------------------
-# Initialisation
+# Configuration & Initialisation
 # -------------------------
-
 load_dotenv()
+
+QUERIES = ["ti=artificial intelligence"]
+MAX_RECORDS_DB = 10_000   # Limite totale pour la BDD
+MAX_RECORDS_JSON = 100    # Limite pour le fichier JSONL de visualisation
+STEP = 100                # Pagination API OPS
 
 fetcher = InpiFetcher(
     os.getenv("EPO_CLIENT_ID"),
     os.getenv("EPO_CLIENT_SECRET"),
 )
 
+# Initialisation DB
+session = next(get_session())
+source_service = SourceService()
+item_service = ResearchItemService()
+
+# Création de la source EPO
+epo_source = source_service.create(
+    session,
+    SourceCreate(
+        name="epo_ops",
+        type="patent",
+        base_url="https://ops.epo.org/"
+    )
+)
+
 Path("data").mkdir(exist_ok=True)
+output_path = Path("data/epo_ai_brevets.jsonl")
+
+# Chargement des IDs existants pour éviter les doublons au sein du crawl
+existing_docdb_ids = set()
+if output_path.exists():
+    with open(output_path, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+                if "docdb_id" in obj:
+                    existing_docdb_ids.add(obj["docdb_id"])
+            except json.JSONDecodeError:
+                continue
+
 
 
 # -------------------------
-# Étape 2 : extraction des pointeurs
+# Fonctions de Parsing 
 # -------------------------
 
 def extract_publication_references(xml_text):
@@ -120,7 +135,7 @@ def extract_publication_references(xml_text):
     return results
 
 # -------------------------
-# Étape 3 : parsing ciblé
+# Parsing ciblé
 # -------------------------
 
 def parse_biblio(xml_text):
@@ -134,18 +149,31 @@ def parse_biblio(xml_text):
         "cpc": [],
     }
 
-    for t in root.findall(".//ex:invention-title", ns):
-        if t.attrib.get("{http://www.w3.org/XML/1998/namespace}lang") == "en":
+    titles = root.findall(".//ex:invention-title", ns)
+    for t in titles:
+        lang = t.attrib.get("{http://www.w3.org/XML/1998/namespace}lang")
+        if lang == "en":
             data["title"] = t.text
+            break
+    
+    if not data["title"] and titles:
+        data["title"] = titles[0].text
+
+    # Nettoyage des noms (suppression des espaces doubles et caractères bizarres)
+    for a in root.findall(".//ex:applicant//ex:name", ns):
+        if a.text:
+            name = " ".join(a.text.split())
+            if name not in data["applicants"]:
+                data["applicants"].append(name)
+
+    for i in root.findall(".//ex:inventor//ex:name", ns):
+        if i.text:
+            name = " ".join(i.text.split())
+            if name not in data["inventors"]:
+                data["inventors"].append(name)
 
     for c in root.findall(".//ex:classification-ipcr/ex:text", ns):
         data["cpc"].append(c.text.strip())
-
-    for a in root.findall(".//ex:applicant//ex:name", ns):
-        data["applicants"].append(a.text)
-
-    for i in root.findall(".//ex:inventor//ex:name", ns):
-        data["inventors"].append(i.text)
 
     return data
 
@@ -165,79 +193,115 @@ def parse_abstract(xml_text):
     return " ".join(paragraphs) if paragraphs else None
 
 
-# ----------------------
-# Boucle itérative pour ne pas requêter à la main
-# ---------------------------
 
-output_path = Path("data/epo_ai_brevets.jsonl")
-existing_docdb_ids = set()
-
-if output_path.exists():
-    with open(output_path, "r", encoding="utf-8") as f:
-        for line in f:
-            try:
-                obj = json.loads(line)
-                if "docdb_id" in obj:
-                    existing_docdb_ids.add(obj["docdb_id"])
-            except json.JSONDecodeError:
-                continue
-
-print(f"[INFO] Brevets déjà présents : {len(existing_docdb_ids)}")
-
-
-# ---------------------
-# Coeur du crawler
-# ----------------------
-
-QUERY = "ti=artificial intelligence"
-STEP = 100
-start = 1
+# -------------------------
+# Cœur du Crawler Intégré
+# -------------------------
+total_db_count = 0
+nb_ecrits_jsonl = 0
 
 with open(output_path, "a", encoding="utf-8") as out:
-    while True:
-        end = start + STEP - 1
-        print(f"[INFO] Requête OPS {start}-{end}")
+    for query in QUERIES:
+        start = 1
+        query_db_count = 0
+        
+        while query_db_count < MAX_RECORDS_DB:
+            end = start + STEP - 1
+            print(f"[INFO] Requête OPS {start}-{end} pour : {query}")
 
-        xml = fetcher.search(
-            query=QUERY,
-            start=start,
-            end=end,
-        )
+            try:
+                xml = fetcher.search(query=query, start=start, end=end)
+                refs = extract_publication_references(xml)
+                
+                if not refs:
+                    print(f"[INFO] Fin des résultats pour la requête : {query}")
+                    break
 
-        refs = extract_publication_references(xml)
+                for ref in refs:
+                    docdb_id = ref["docdb_id"]
 
-        if not refs:
-            print("[INFO] Plus aucun résultat, arrêt.")
-            break
+                    # Saut si déjà dans le fichier JSONL (déjà traité lors d'un run précédent)
+                    if docdb_id in existing_docdb_ids:
+                        continue
 
-        print(f"[INFO] {len(refs)} références trouvées")
+                    try:
+                        # 1. Enrichissement via API
+                        biblio_xml = fetcher.get_biblio_docdb(docdb_id)
+                        if not biblio_xml: continue
+                        
+                        abstract_xml = fetcher.get_abstract_docdb(docdb_id)
+                        biblio_data = parse_biblio(biblio_xml)
+                        abstract = parse_abstract(abstract_xml)
 
-        for ref in refs:
-            docdb_id = ref["docdb_id"]
+                        # 2. Construction du Record
+                        record = {
+                            "source": "EPO OPS",
+                            "family_id": ref["family_id"],
+                            "docdb_id": docdb_id,
+                            "kind": ref.get("kind"),
+                            **biblio_data,
+                            "abstract": abstract,
+                        }
+                        print(f"   [+] Traitement brevet : {docdb_id} - {biblio_data['title'][:50]}...")
 
-            if docdb_id in existing_docdb_ids:
-                continue
+                        # 3. Écriture JSONL (Visualisation limitée)
+                        
+                        if nb_ecrits_jsonl < MAX_RECORDS_JSON:
+                            try:
+                                line = json.dumps(record, ensure_ascii=False) + "\n"
+                                out.write(line)
+                                out.flush() # Force l'apparition dans le fichier immédiatement
+                                nb_ecrits_jsonl += 1
+                            except Exception as e:
+                                print(f"Erreur écriture fichier : {e}")
+                        
+                        # 4. Insertion Base de Données (SQLModel)
+                        research_item = ResearchItemCreate(
+                            source_id=epo_source.id,
+                            external_id=docdb_id,
+                            doi=None,
+                            title=biblio_data["title"],
+                            year=int(ref["doc_number"][:4]) if ref["doc_number"][:4].isdigit() else None,
+                            type="patent",
+                            metrics={
+                                "kind": ref.get("kind"),
+                                "authors": biblio_data["applicants"] + biblio_data["inventors"],
+                                "organizations": {
+                                    "names": biblio_data["applicants"],
+                                    "countries": [ref["country"]]
+                                }
+                            },
+                            raw=record
+                        )
 
-            biblio_xml = fetcher.get_biblio_docdb(docdb_id)
-            if not biblio_xml:
-                continue
+                        try:
+                            item_service.create(session, research_item)
+                            session.commit()
+                            query_db_count += 1
+                            total_db_count += 1
+                        except IntegrityError:
+                            session.rollback()
+                        except Exception as e:
+                            session.rollback()
+                            print(f"[ERREUR DB] {e}")
 
-            abstract_xml = fetcher.get_abstract_docdb(docdb_id)
+                        existing_docdb_ids.add(docdb_id)
+                        time.sleep(1.5) # Throttling strict
 
-            record = {
-                "source": "EPO OPS",
-                "family_id": ref["family_id"],
-                "docdb_id": docdb_id,
-                **parse_biblio(biblio_xml),
-                "abstract": parse_abstract(abstract_xml),
-            }
+                    except requests.exceptions.HTTPError as e:
+                        if e.response.status_code == 403:
+                            print("[ALERTE] 403 Quota. Pause 30s...")
+                            time.sleep(30)
+                            continue
+                        
+                    if query_db_count >= MAX_RECORDS_DB:
+                        break
 
-            out.write(json.dumps(record, ensure_ascii=False) + "\n")
-            existing_docdb_ids.add(docdb_id)
+                start += STEP
+                time.sleep(1) # Pause entre les pages
 
-            time.sleep(0.2)
+            except Exception as e:
+                print(f"[ERREUR] {e}")
+                break
 
-        start += STEP
-        time.sleep(1)
-
-print("[INFO] Terminé.")
+print(f"[INFO] Terminé. Total inséré en DB : {total_db_count}")
