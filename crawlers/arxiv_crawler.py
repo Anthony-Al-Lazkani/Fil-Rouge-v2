@@ -9,16 +9,16 @@ from schemas.source import SourceCreate
 
 # ------------------ CONFIG ------------------
 AI_CATEGORIES = [
-    # "cs.AI",  # Artificial Intelligence
-    # "cs.LG",  # Machine Learning
-    # "cs.NE",  # Neural and Evolutionary Computing
+    "cs.AI",  # Artificial Intelligence
+    "cs.LG",  # Machine Learning
+    "cs.NE",  # Neural and Evolutionary Computing
     "cs.CV",  # Computer Vision (optional)
 ]
 
 BASE_ARXIV_URL = "https://export.arxiv.org/api/query"
 
 # Limits
-MAX_RESULTS_PER_CATEGORY = 500  # you can change this whenever
+MAX_RESULTS_PER_CATEGORY = 10  # you can change this whenever
 FETCH_BATCH_SIZE = 100           # how many results to fetch per request
 FETCH_DELAY = 0.5                # seconds between requests
 POST_DELAY = 0.05                # optional small delay per article

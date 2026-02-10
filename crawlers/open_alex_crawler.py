@@ -104,7 +104,7 @@ config.max_retries = 3
 AI_CONCEPT_ID = "C41008148"
 START_YEAR = 2020
 END_YEAR = 2026
-PER_PAGE = 200
+PER_PAGE = 100
 
 # ------------------ SERVICES ------------------
 source_service = SourceService()
@@ -143,6 +143,7 @@ for year in range(START_YEAR, END_YEAR + 1):
         for work in page:
             external_id = work.get("id")
             title = work.get("title")
+            doi = work.get("doi")
 
             # Skip if already in DB
             if exists(external_id):
@@ -171,6 +172,7 @@ for year in range(START_YEAR, END_YEAR + 1):
                 source_id=openalex.id,
                 external_id=external_id,
                 type="article",
+                doi=doi,
                 title=title,
                 year=work.get('publication_year'),
                 is_retracted=work.get('is_retracted', False),
