@@ -8,7 +8,7 @@ class AuthorService:
         Creates a new Author in the database, or returns existing if duplicate by name.
         """
         # check if source already exists
-        existing = session.exec(select(Author).where(Author.name == data.name)).first()
+        existing = session.exec(select(Author).where(Author.full_name == data.full_name)).first()
         if existing:
             return existing
 

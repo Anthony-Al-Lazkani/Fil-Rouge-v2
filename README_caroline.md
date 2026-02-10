@@ -13,3 +13,4 @@ Structure actuelle :
 Mise à jour des schemas et service (1 par table)
 
 Mise à jour de semantic scholar crawler (main) pour remplir toutes les bases
+

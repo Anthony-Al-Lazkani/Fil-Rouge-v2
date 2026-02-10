@@ -22,7 +22,9 @@ OBSERVATIONS:
 """
 
 import json
+import os
 import time
+import traceback
 from pathlib import Path
 from datetime import datetime
 from database import get_session
@@ -60,8 +62,8 @@ from sqlalchemy.exc import IntegrityError #ajout de cette ligne pour gérer les 
 QUERIES = [
     "artificial intelligence",
 ]
-YEARS = list(range(2021, 2026))  # 2018 à 2026
-MAX_PER_YEAR = 25
+YEARS = list(range(2025, 2026))  # 2018 à 2026
+MAX_PER_YEAR = 2
 API_KEY = "BJxxqhUWGI2QmwHvezhLqasQc0I3Sq2e5HrdxnCi"
 
 
@@ -135,7 +137,7 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 output_file = data_path / f"semantic_scholar_{timestamp}.jsonl"
 
 # Initialiser le fetcher
-fetcher = SemanticScholarFetcher(api_key=API_KEY, limit=100)
+fetcher = SemanticScholarFetcher(api_key=API_KEY, limit=5)
 
 print(f"Fichier de sortie : {output_file}")
 print(f"Requêtes : {len(QUERIES)} requêtes")
@@ -233,6 +235,7 @@ with open(output_file, "a", encoding="utf-8") as f:
                                     "hIndex":author.get("hIndex"),
                                 }
                                 for author in paper.get("authors", [])
+                                if isinstance(author, dict) and author.get("name")
                             ],
                             "fields_of_study": paper.get("fieldsOfStudy", [])
                         }
@@ -242,6 +245,13 @@ with open(output_file, "a", encoding="utf-8") as f:
 
                         # --- B. Insertion en base de données ---
                         try :
+
+                            if not paper_id:
+                                raise ValueError("paper_id est None")
+
+                            if not paper.get("title"):
+                                raise ValueError(f"Titre manquant pour {paper_id}")
+
                             research_item = ResearchItemCreate(
                                 source_id=semantic_scholar.id,
                                 external_id=paper_id,
@@ -271,15 +281,16 @@ with open(output_file, "a", encoding="utf-8") as f:
                             # 2. Traiter les auteurs et leurs affiliations
                             for idx, author_data in enumerate(paper.get("authors", []), 1):
                                 author_id = author_data.get("authorId")
-                                external_id=author_data.get("externalIds", {}) or {}
-                                external_id["SemanticScholar"]=author_id
 
                                 if not author_id:
                                     continue
 
+                                external_id = author_data.get("externalIds", {}) or {}
+                                external_id["SemanticScholar"] = author_id
+
                                 # Créer/récupérer l'auteur
                                 author = AuthorCreate(
-                                    external_id=external_id,
+                                    external_id=json.dumps(external_id),
                                     full_name=author_data.get("name"),
                                     publication_count=1
                                 )
@@ -324,7 +335,7 @@ with open(output_file, "a", encoding="utf-8") as f:
 
                             # 3. Traiter les fields of study
                             fields = paper.get("fieldsOfStudy", [])
-                            for field_name in fields:
+                            for field_name in (fields or []):
                                 if not field_name:
                                     continue
 
@@ -354,6 +365,8 @@ with open(output_file, "a", encoding="utf-8") as f:
                             session.rollback()
                             # On ne compte pas ça comme un doublon, mais on affiche l'erreur
                             print(f"Erreur technique (hors doublon) : {e}")
+                            print(f"\nERREUR sur paper_id={paper_id}:")
+                            print(f"Détails:\n{traceback.format_exc()}")
 
                         # Affichage toutes les 100 nouveaux
                         if count % 100 == 0:

@@ -11,4 +11,4 @@ class ResearchItemField(SQLModel, table=True):
 
     # Clés étrangères
     research_item_id: int = Field(foreign_key="research_item.id", index=True)
-    field_of_study_id: int = Field(foreign_key="fieldOfStudy.id", index=True)
+    field_of_study_id: int = Field(foreign_key="fieldofstudy.id", index=True)
