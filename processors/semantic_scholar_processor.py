@@ -43,9 +43,9 @@ class SemanticScholarProcessor:
 
             author_create = AuthorCreate(
                 full_name=author.get("name", ""),
-                external_id=str(author.get("authorId"))
-                if author.get("authorId")
-                else None,
+                external_id=str(author.get("id")),
+                # if author.get("authorId")
+                # else None,
                 orcid=author.get("orcid"),
                 roles=roles,
                 affiliations=author.get("affiliations", []),
@@ -62,7 +62,7 @@ class SemanticScholarProcessor:
         # Prepare authors data for metrics
         authors_for_db = [
             {
-                "author_id": author.get("authorId"),
+                "author_id": author.get("id"),
                 "display_name": author.get("name"),
                 "orcid": author.get("orcid"),
                 "affiliations": author.get("affiliations", []),
