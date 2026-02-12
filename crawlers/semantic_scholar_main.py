@@ -32,8 +32,10 @@ from .semantic_scholar_fetcher import SemanticScholarFetcher
 from database import get_session
 from services.research_item_service import ResearchItemService
 from services.source_service import SourceService
+from services.author_service import AuthorService
 from schemas.research_item import ResearchItemCreate
 from schemas.source import SourceCreate
+from schemas.author import AuthorCreate
 from sqlalchemy.exc import (
     IntegrityError,
 )  # ajout de cette ligne pour gérer les erreurs vis-à-vis de l'insertion en DB en cas d'unicité des DOI
@@ -52,7 +54,7 @@ from sqlalchemy.exc import (
 QUERIES = [
     "artificial intelligence",
 ]
-YEARS = list(range(2020, 2027))  # 2020 à 2026
+YEARS = list(range(2026, 2027))  # 2020 à 2026
 MAX_PER_YEAR = 2500
 API_KEY = "BJxxqhUWGI2QmwHvezhLqasQc0I3Sq2e5HrdxnCi"
 
@@ -101,6 +103,7 @@ def load_existing_ids(data_folder="../data"):
 # Initialisation des services et création de la source Semantic Scholar
 source_service = SourceService()
 item_service = ResearchItemService()
+author_service = AuthorService()
 session = next(get_session())
 
 # Créer ou récupérer la source Semantic Scholar
@@ -220,6 +223,23 @@ with open(output_file, "a", encoding="utf-8") as f:
                         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
                         # --- B. Insertion en base de données ---
+                        author_ids = []
+                        for idx, author in enumerate(paper.get("authors", [])):
+                            roles = ["first_author"] if idx == 0 else ["co_author"]
+
+                            # Create author in database
+                            author_create = AuthorCreate(
+                                full_name=author.get("name", ""),
+                                external_id=str(author.get("authorId"))
+                                if author.get("authorId")
+                                else None,
+                                orcid=author.get("orcid"),
+                                roles=roles,
+                                affiliations=author.get("affiliations", []),
+                            )
+                            db_author = author_service.create(session, author_create)
+                            author_ids.append(db_author.id)
+
                         authors_for_db = [
                             {
                                 "author_id": author.get("authorId"),
@@ -249,6 +269,7 @@ with open(output_file, "a", encoding="utf-8") as f:
                             keywords=[],  # Semantic Scholar doesn't provide keywords directly
                             topics=paper.get("fieldsOfStudy", []),
                             metrics={
+                                "author_ids": author_ids,
                                 "citation_count": paper.get("citationCount", 0),
                                 "venue": paper.get("venue"),
                                 "authors": authors_for_db,

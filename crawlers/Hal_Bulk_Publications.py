@@ -33,12 +33,15 @@ from sqlalchemy.exc import IntegrityError
 
 from services.research_item_service import ResearchItemService
 from services.source_service import SourceService
+from services.author_service import AuthorService
 from schemas.research_item import ResearchItemCreate
 from schemas.source import SourceCreate
+from schemas.author import AuthorCreate
 
 # Initialisation des services
 source_service = SourceService()
 item_service = ResearchItemService()
+author_service = AuthorService()
 session = next(get_session())
 
 
@@ -154,22 +157,22 @@ with open("data/hal_publications.jsonl", "w", encoding="utf-8") as f:
                     f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
                 # --- 3. Insertion DB ---
-                # Build authors with affiliations
+                # Build authors with affiliations and create them in database
                 authors_raw = doc.get("authFullName_s", [])
                 struct_ids = doc.get("structId_i", [])
                 struct_names = doc.get("structName_s", [])
                 struct_types = doc.get("structType_s", [])
                 struct_countries = doc.get("structCountry_s", [])
 
+                author_ids = []
                 authors_for_db = []
                 for idx, name in enumerate(authors_raw):
-                    author_entry = {
-                        "display_name": name,
-                        "roles": ["first_author"] if idx == 0 else ["co_author"],
-                        "affiliations": [],
-                    }
+                    roles = ["first_author"] if idx == 0 else ["co_author"]
+
+                    # Build affiliations list
+                    affiliations = []
                     if idx < len(struct_names):
-                        author_entry["affiliations"].append(
+                        affiliations.append(
                             {
                                 "id": struct_ids[idx]
                                 if idx < len(struct_ids)
@@ -183,6 +186,23 @@ with open("data/hal_publications.jsonl", "w", encoding="utf-8") as f:
                                 else None,
                             }
                         )
+
+                    # Create author in database
+                    author_create = AuthorCreate(
+                        full_name=name,
+                        external_id=f"hal_{doc.get('halId_s')}_{idx}",  # Create unique external ID
+                        roles=roles,
+                        affiliations=affiliations,
+                    )
+                    db_author = author_service.create(session, author_create)
+                    author_ids.append(db_author.id)
+
+                    # Keep original format for metrics
+                    author_entry = {
+                        "display_name": name,
+                        "roles": roles,
+                        "affiliations": affiliations,
+                    }
                     authors_for_db.append(author_entry)
 
                 research_item = ResearchItemCreate(
@@ -204,6 +224,7 @@ with open("data/hal_publications.jsonl", "w", encoding="utf-8") as f:
                     keywords=doc.get("keyword_s", []),
                     topics=doc.get("domain_s", []),
                     metrics={
+                        "author_ids": author_ids,
                         "doi": doc.get("doiId_s"),
                         "domains": doc.get("domain_s", []),
                         "keywords": doc.get("keyword_s", []),

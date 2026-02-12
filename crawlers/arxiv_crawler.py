@@ -4,8 +4,10 @@ import feedparser
 from database import get_session
 from services.research_item_service import ResearchItemService
 from services.source_service import SourceService
+from services.author_service import AuthorService
 from schemas.research_item import ResearchItemCreate
 from schemas.source import SourceCreate
+from schemas.author import AuthorCreate
 
 # ------------------ CONFIG ------------------
 AI_CATEGORIES = [
@@ -19,26 +21,27 @@ BASE_ARXIV_URL = "https://export.arxiv.org/api/query"
 
 # Limits
 MAX_RESULTS_PER_CATEGORY = 10  # you can change this whenever
-FETCH_BATCH_SIZE = 100           # how many results to fetch per request
-FETCH_DELAY = 0.5                # seconds between requests
-POST_DELAY = 0.05                # optional small delay per article
+FETCH_BATCH_SIZE = 100  # how many results to fetch per request
+FETCH_DELAY = 0.5  # seconds between requests
+POST_DELAY = 0.05  # optional small delay per article
 
 # ------------------ SERVICES ------------------
 session = next(get_session())
 source_service = SourceService()
 item_service = ResearchItemService()
+author_service = AuthorService()
 
 # Create/get source for ArXiv
-arxiv_source = source_service.create(session, SourceCreate(
-    name="arxiv",
-    type="academic",
-    base_url="https://arxiv.org/"
-))
+arxiv_source = source_service.create(
+    session, SourceCreate(name="arxiv", type="academic", base_url="https://arxiv.org/")
+)
+
 
 # ------------------ HELPER ------------------
 def exists(source_id: int, external_id: str) -> bool:
     """Check if an article already exists in the DB"""
     return item_service.get_by_external_id(session, source_id, external_id) is not None
+
 
 def get_arxiv_data(category: str, start_index: int = 0, max_results: int = 100):
     url = (
@@ -49,15 +52,18 @@ def get_arxiv_data(category: str, start_index: int = 0, max_results: int = 100):
     feed = feedparser.parse(url)
     articles = []
     for entry in feed.entries:
-        articles.append({
-            "id": entry.id.split('/')[-1],
-            "title": entry.title.strip(),
-            "summary": entry.summary.strip(),
-            "published": entry.published,
-            "authors": [author.name for author in entry.authors],
-            "category": category
-        })
+        articles.append(
+            {
+                "id": entry.id.split("/")[-1],
+                "title": entry.title.strip(),
+                "summary": entry.summary.strip(),
+                "published": entry.published,
+                "authors": [author.name for author in entry.authors],
+                "category": category,
+            }
+        )
     return articles
+
 
 # ------------------ FETCHING ------------------
 def fetch_category(category: str):
@@ -68,7 +74,9 @@ def fetch_category(category: str):
         remaining = MAX_RESULTS_PER_CATEGORY - fetched_count
         batch_size = min(FETCH_BATCH_SIZE, remaining)
 
-        articles = get_arxiv_data(category, start_index=start_index, max_results=batch_size)
+        articles = get_arxiv_data(
+            category, start_index=start_index, max_results=batch_size
+        )
         if not articles:
             break
 
@@ -78,21 +86,36 @@ def fetch_category(category: str):
             if exists(arxiv_source.id, ext_id):
                 continue  # skip duplicates
 
+            # Create authors in database
+            author_ids = []
+            for author_name in article["authors"]:
+                author_create = AuthorCreate(
+                    full_name=author_name,
+                    external_id=f"arxiv_{author_name.replace(' ', '_')}",  # Create simple external ID
+                    roles=["co_author"]
+                    if author_name != article["authors"][0]
+                    else ["first_author"],
+                )
+                author = author_service.create(session, author_create)
+                author_ids.append(author.id)
+
             research_item = ResearchItemCreate(
                 source_id=arxiv_source.id,
                 external_id=ext_id,
                 type="article",
                 title=article["title"],
+                abstract=article.get("summary"),
                 year=int(article["published"][:4]),
                 is_retracted=False,
                 is_open_access=True,
                 metrics={
+                    "author_ids": author_ids,
                     "authors": article["authors"],
                     "summary": article["summary"],
                     "category": article["category"],
-                    "published": article["published"]
+                    "published": article["published"],
                 },
-                raw=article
+                raw=article,
             )
 
             item_service.create(session, research_item)
@@ -106,6 +129,7 @@ def fetch_category(category: str):
     print(f"Finished category {category}: {fetched_count} articles collected.\n")
     return fetched_count
 
+
 # ------------------ MAIN ------------------
 def crawl_ai_articles():
     total_articles = 0
@@ -115,6 +139,7 @@ def crawl_ai_articles():
         total_articles += count
 
     print(f"\nTotal AI articles collected: {total_articles}")
+
 
 if __name__ == "__main__":
     crawl_ai_articles()

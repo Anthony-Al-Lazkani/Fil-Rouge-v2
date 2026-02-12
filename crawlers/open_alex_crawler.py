@@ -1,99 +1,11 @@
-# from pyalex import Works, config
-# from database import get_session
-# from services.research_item_service import ResearchItemService
-# from services.source_service import SourceService
-# from schemas.research_item import ResearchItemCreate
-# from schemas.source import SourceCreate
-#
-# # 1. SETUP
-# config.email = "anthonylazkani.22@gmail.com"
-# config.max_retries = 3
-#
-# AI_CONCEPT_ID = "C41008148"
-# TARGET_COUNT = 10000
-#
-# # 2. Services
-# source_service = SourceService()
-# item_service = ResearchItemService()
-#
-# # Session
-# session = next(get_session())
-#
-# # create or get OpenAlex source
-# openalex = source_service.create(session, SourceCreate(
-#     name="openalex",
-#     type="academic",
-#     base_url="https://openalex.com/",
-#     )
-# )
-#
-# # 3. QUERY
-# query = (
-#     Works()
-#     .filter(
-#         concepts={"id": AI_CONCEPT_ID},
-#         from_publication_date="2020-01-01"
-#     )
-#     .sort(publication_date="desc")
-# )
-#
-# pager = query.paginate(per_page=200, n_max=TARGET_COUNT)
-#
-# count = 0
-# for page in pager:
-#     for work in page:
-#
-#         # --- A. LOCATION / ACCESS INFO ---
-#         loc = work.get('primary_location') or {}
-#         source_info = loc.get('source') or {}
-#
-#         # --- B. AUTHORS (simplified for DB)
-#         authors = []
-#         for auth in work.get('authorships', []):
-#             author_details = auth.get('author', {})
-#             authors.append({
-#                 "author_id": author_details.get('id'),
-#                 "display_name": author_details.get('display_name'),
-#                 "orcid": author_details.get('orcid'),
-#                 "raw_author_name": auth.get('raw_author_name'),
-#                 "is_corresponding": auth.get('is_corresponding')
-#             })
-#
-#         # --- C. BUILD SERVICE SCHEMA ---
-#         research_item = ResearchItemCreate(
-#             source_id=openalex.id,
-#             external_id=work.get('id'),
-#             type="article",
-#             title=work.get('title'),
-#             year=work.get('publication_year'),
-#             is_retracted=work.get('is_retracted', False),
-#             is_open_access=loc.get('is_oa', False),
-#             metrics={"topics": [t['display_name'] for t in work.get('topics', [])], "authors": authors},
-#             raw=work  # store full raw record
-#         )
-#
-#         # --- D. INSERT INTO DB ---
-#         item_service.create(session, research_item)
-#
-#         count += 1
-#         if count % 100 == 0:
-#             print(f"Inserted {count} articles...", end="\r")
-#
-# print(f"\nCompleted. {count} articles saved to the database!")
-#
-# # Fetch all articles and print a few columns
-# all_items = item_service.get_all(session)
-# print(f"\nTotal items in DB: {len(all_items)}")
-# for item in all_items[:10]:  # print first 10 for readability
-#     print(f"{item.id} | {item.external_id} | {item.title} | {item.year} | OA: {item.is_open_access}")
-#
-
 from pyalex import Works, config
 from database import get_session
 from services.research_item_service import ResearchItemService
 from services.source_service import SourceService
+from services.author_service import AuthorService
 from schemas.research_item import ResearchItemCreate
 from schemas.source import SourceCreate
+from schemas.author import AuthorCreate
 
 import time
 
@@ -109,6 +21,7 @@ PER_PAGE = 100
 # ------------------ SERVICES ------------------
 source_service = SourceService()
 item_service = ResearchItemService()
+author_service = AuthorService()
 session = next(get_session())
 
 # Create or get OpenAlex source
@@ -159,7 +72,8 @@ for year in range(START_YEAR, END_YEAR + 1):
 
             loc = work.get("primary_location") or {}
 
-            # Extract authors with full details
+            # Extract authors with full details and create them in database
+            author_ids = []
             authors = []
             for idx, auth in enumerate(work.get("authorships", [])):
                 a = auth.get("author", {})
@@ -180,18 +94,30 @@ for year in range(START_YEAR, END_YEAR + 1):
                     roles.append("corresponding_author")
                 if idx == 0:
                     roles.append("first_author")
+                if not roles:
+                    roles.append("co_author")
 
-                authors.append(
-                    {
-                        "author_id": a.get("id"),
-                        "display_name": a.get("display_name"),
-                        "orcid": a.get("orcid"),
-                        "raw_author_name": auth.get("raw_author_name"),
-                        "roles": roles,
-                        "affiliations": author_affiliations,
-                        "countries": auth.get("countries", []),
-                    }
+                author_data = {
+                    "author_id": a.get("id"),
+                    "display_name": a.get("display_name"),
+                    "orcid": a.get("orcid"),
+                    "raw_author_name": auth.get("raw_author_name"),
+                    "roles": roles,
+                    "affiliations": author_affiliations,
+                    "countries": auth.get("countries", []),
+                }
+                authors.append(author_data)
+
+                # Create author in database
+                author_create = AuthorCreate(
+                    full_name=a.get("display_name") or auth.get("raw_author_name", ""),
+                    external_id=str(a.get("id")) if a.get("id") else None,
+                    orcid=a.get("orcid"),
+                    roles=roles,
+                    affiliations=author_affiliations,
                 )
+                author = author_service.create(session, author_create)
+                author_ids.append(author.id)
 
             # Extract location info
             loc = work.get("primary_location") or {}
@@ -220,6 +146,7 @@ for year in range(START_YEAR, END_YEAR + 1):
                 if work.get("topics")
                 else [],
                 metrics={
+                    "author_ids": author_ids,
                     "authors": authors,
                     "open_access_location": loc.get("landing_page_url"),
                     "source_name": source_info.get("display_name"),
