@@ -28,12 +28,8 @@ from .Hal_fetcher_publications import HALPublicationFetcher
 from pathlib import Path
 
 # Imports nécessaires pour la base de données
-from database import get_session, engine
-from models.research_item import ResearchItem  # Importez vos modèles
-from models.source import Source
-from sqlalchemy import delete
+from database import get_session
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
 
 from services.research_item_service import ResearchItemService
 from services.source_service import SourceService

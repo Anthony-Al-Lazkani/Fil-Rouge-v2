@@ -1,13 +1,11 @@
 import re
 import json
-from sqlmodel import Session, select, create_engine
+from sqlmodel import Session, select
 from models.research_item import ResearchItem
 from models.author import Author
 from models.affiliation import Affiliation
 from schemas.author import AuthorCreate
-
-# Assurez-vous que le chemin est correct vers votre base
-engine = create_engine("sqlite:///database.db")
+from database.initialize import engine
 
 
 def normalize_name(name):
