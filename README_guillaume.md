@@ -15,7 +15,10 @@ uv run python -m services.normalization_doublons
 uv run python -m services.extract_authors
 uv run python -m services.extract_organizations
 
-uv run ontologie/peupler_ontologie.py 
+uv run ontologie/peupler_ontologie_v2.py 
+uv run ontologie/diag_graph.py
+uv run ontologie/interroger_onto.py
+
 
 16-02-2026:
      Travail sur un prototype d'ontologie
