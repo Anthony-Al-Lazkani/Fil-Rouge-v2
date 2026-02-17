@@ -1,0 +1,73 @@
+@prefix : <http://www.semanticweb.org/s2b/ontologie#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:S2B_Ontology rdf:type owl:Ontology .
+
+### --- CLASSES --- ###
+
+# Pilier Académique
+:Chercheur rdf:type owl:Class .
+:TravailDeRecherche rdf:type owl:Class .
+:DomaineScientifique rdf:type owl:Class .
+
+# Pilier Entreprise
+:Startup rdf:type owl:Class .
+:SecteurActivite rdf:type owl:Class .
+
+# Pilier Institutionnel
+:Organisation rdf:type owl:Class .
+:Pays rdf:type owl:Class .
+
+### --- PROPRIÉTÉS D'OBJET (Relations) --- ###
+
+# Relie un chercheur à une startup
+:estFondateurDe rdf:type owl:ObjectProperty ;
+    rdfs:domain :Chercheur ;
+    rdfs:range :Startup .
+
+# Relie un travail de recherche (article) à une startup
+:estALOrigineDe rdf:type owl:ObjectProperty ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range :Startup .
+
+# Relie un chercheur à son organisation
+:estAffilieA rdf:type owl:ObjectProperty ;
+    rdfs:domain :Chercheur ;
+    rdfs:range :Organisation .
+
+# Localisation géographique
+:estLocaliseEn rdf:type owl:ObjectProperty ;
+    rdfs:domain [ owl:unionOf (:Organisation :Startup) ] ;
+    rdfs:range :Pays .
+
+# Lien entre auteurs et publications
+:aEcrit rdf:type owl:ObjectProperty ;
+    rdfs:domain :Chercheur ;
+    rdfs:range :TravailDeRecherche .
+
+# Thématiques
+:concerneLeDomaine rdf:type owl:ObjectProperty ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range :DomaineScientifique .
+
+### --- PROPRIÉTÉS DE DONNÉES (Attributs) --- ###
+
+:aPourTitre rdf:type owl:DatatypeProperty ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:string .
+
+:aPourScoreCitation rdf:type owl:DatatypeProperty ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:integer .
+
+:aPourDateCreation rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Startup ;
+    rdfs:range xsd:dateTime .
+
+:nomPays rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Pays ;
+    rdfs:range xsd:string .
