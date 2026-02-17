@@ -3,20 +3,33 @@
 # Workflow actuel:
 uv run python -m database.initialize (si on veut réinitialiser la BDD)
 uv run uvicorn main:app --reload
+
 uv run python -m crawlers.Hal_Bulk_Publications
+uv run python -m crawlers.arxiv_crawler
 uv run python -m crawlers.semantic_scholar_main
+uv run python -m crawlers.open_alex_crawler
+uv run python -m crawlers.Inpi_Bulk
+
 uv run python -m services.normalization_doublons
+
 uv run python -m services.extract_authors
 uv run python -m services.extract_organizations
 
+uv run ontologie/peupler_ontologie_v2.py 
+uv run ontologie/diag_graph.py
+uv run ontologie/interroger_onto.py
 
 
-04-03-2026:
+16-02-2026:
+     Travail sur un prototype d'ontologie
+
+04-02-2026:
      Ajout du script normalization_doublons.py pour supprimer les doublons de la base de données.
-     Modification du crawler semantic_scholar (années 2021 à 2026)
+     Modification de la structure de la table pour que le DOI soit unique=True
+     Modification du crawler semantic_scholar (années 2021 à 2026) + gestion des exceptions (notamment vis à vis de l'unicité du DOI)
      Ajout du scrit extract_authors et extract_organizations qui remplissent les tables
 
-03-03-2026:
+03-02-2026:
      Choix à faire entre passer par Ontotext/refine ou par faire un script Python qui va nettoyer les doublons et enrichir la BDD
      Je tente de faire un script qui l'enrichit, cela permet d'avoir quelque chose d'automatique.
      Ajout de nouvelles tables dans la base:
