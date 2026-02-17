@@ -7,7 +7,7 @@ config.email = "anthonylazkani.22@gmail.com"
 config.max_retries = 3
 
 AI_CONCEPT_ID = "C41008148"
-START_YEAR = 2026
+START_YEAR = 2024
 END_YEAR = 2026
 PER_PAGE = 100
 
