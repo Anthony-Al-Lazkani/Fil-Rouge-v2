@@ -22,7 +22,8 @@ uv run ontologie/interroger_onto.py
 
 19-02-2026:
      Nouveau .ttl avec ontologie de Caro
-     Nouveau script pour peupler l'ontologie (ne fonctionne pas en l'état)
+     Nouveau script pour peupler l'ontologie
+     Interrogation pour avoir les domaines les plus tendances
 
 16-02-2026:
      Travail sur un prototype d'ontologie

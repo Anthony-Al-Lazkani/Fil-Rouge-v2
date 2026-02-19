@@ -1,25 +1,31 @@
 from rdflib import Graph
 
 g = Graph()
-g.parse("ontologie/onto_peuplee.ttl", format="turtle")
+g.parse("ontologie/onto_peuplee_v2.ttl", format="turtle")
 
-requete_geo = """
+# Requête pour lister les articles, leurs domaines et le pays (si disponible)
+requete_top_domaines = """
 PREFIX : <http://www.semanticweb.org/s2b/ontologie#>
-SELECT ?nomAuteur ?nomOrg
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?nomDomaine (COUNT(?art) AS ?nbArticles)
 WHERE {
-    ?auteur :aPourNom ?nomAuteur ;
-            :estAffilieA ?org .
-    ?org :aPourNom ?nomOrg .
+    ?art rdf:type :TravailDeRecherche ;
+         :concerneLeDomaine ?domaine .
+    
+    # Nettoyage du nom du domaine
+    BIND(REPLACE(STR(?domaine), "^.*#domaine_", "") AS ?nomDomaine)
 }
+GROUP BY ?nomDomaine
+ORDER BY DESC(?nbArticles)
 LIMIT 10
 """
 
-print(f"{'AUTEUR':<25} | {'ORGANISATION':<30} | {'PAYS'}")
-print("-" * 80)
+print(f"{'DOMAINE SCIENTIFIQUE':<45} | {'NOMBRE D\'ARTICLES'}")
+print("-" * 70)
 
-resultats = g.query(requete_geo)
+resultats = g.query(requete_top_domaines)
 for ligne in resultats:
-    print(f"{str(ligne.nomAuteur):<25} | {str(ligne.nomOrganisation):<30} | {str(ligne.nomPays)}")
-
-if len(resultats) == 0:
-    print("Aucun résultat. Vérifiez que les organisations et les pays sont bien peuplés.")
+    # On remplace les underscores par des espaces pour le rendu final
+    domaine_propre = str(ligne.nomDomaine).replace("_", " ")
+    print(f"{domaine_propre:<45} | {ligne.nbArticles}")
