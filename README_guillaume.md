@@ -20,6 +20,10 @@ uv run ontologie/diag_graph.py
 uv run ontologie/interroger_onto.py
 
 
+19-02-2026:
+     Nouveau .ttl avec ontologie de Caro
+     Nouveau script pour peupler l'ontologie (ne fonctionne pas en l'état)
+
 16-02-2026:
      Travail sur un prototype d'ontologie
 
