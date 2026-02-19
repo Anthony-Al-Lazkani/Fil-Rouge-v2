@@ -1,13 +1,12 @@
 import re
 import json
-from sqlmodel import Session, select, create_engine
+from sqlmodel import Session, select
 from models.research_item import ResearchItem
 from models.organization import Organization
 from models.affiliation import Affiliation
 from schemas.organization import OrganizationCreate
+from database.initialize import engine
 
-# Connexion à la base
-engine = create_engine("sqlite:///database.db")
 
 
 def normalize_org_name(name):

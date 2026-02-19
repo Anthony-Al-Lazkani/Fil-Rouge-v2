@@ -2,13 +2,14 @@ from sqlmodel import Session, select
 from models.research_item import ResearchItem
 from schemas.research_item import ResearchItemCreate
 
+
 class ResearchItemService:
     def create(self, session: Session, data: ResearchItemCreate):
         # check if item already exists
         existing = session.exec(
             select(ResearchItem).where(
-                (ResearchItem.source_id == data.source_id) &
-                (ResearchItem.external_id == data.external_id)
+                (ResearchItem.source_id == data.source_id)
+                & (ResearchItem.external_id == data.external_id)
             )
         ).first()
         if existing:
@@ -24,10 +25,16 @@ class ResearchItemService:
     def get_by_external_id(self, session: Session, source_id: int, external_id: str):
         return session.exec(
             select(ResearchItem).where(
-                (ResearchItem.source_id == source_id) &
-                (ResearchItem.external_id == external_id)
+                (ResearchItem.source_id == source_id)
+                & (ResearchItem.external_id == external_id)
             )
         ).first()
+
+    def get_by_doi(self, session: Session, doi: str):
+        """
+        Returns a research item by DOI from any source.
+        """
+        return session.exec(select(ResearchItem).where(ResearchItem.doi == doi)).first()
 
     def get_all(self, session: Session):
         """

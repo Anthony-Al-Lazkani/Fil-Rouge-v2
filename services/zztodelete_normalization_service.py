@@ -20,9 +20,7 @@ from models.author import Author
 from models.affiliation import Affiliation
 from schemas.organization import OrganizationCreate
 from schemas.author import AuthorCreate
-
-# Configuration
-engine = create_engine("sqlite:///database.db")
+from database.initialize import engine
 
 
 def run_normalization():
