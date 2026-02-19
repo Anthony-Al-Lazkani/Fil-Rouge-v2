@@ -1,0 +1,87 @@
+# Ontologie proposée par Caroline le 17/02 -> j'ai juste coupé la branche OrganisationFacilitatrice
+
+@prefix : <http://www.semanticweb.org/s2b/ontologie#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+:S2B_Ontology rdf:type owl:Ontology .
+
+### --- CLASSES --- ###
+
+:Acteur rdf:type owl:Class .
+
+:Personne rdf:type owl:Class ; rdfs:subClassOf :Acteur .
+
+:PersonneProductrice rdf:type owl:Class ; rdfs:subClassOf :Personne .
+
+:Chercheur rdf:type owl:Class ; rdfs:subClassOf :PersonneProductrice .
+:Entrepreneur rdf:type owl:Class ; rdfs:subClassOf :PersonneProductrice .
+
+:Organisation rdf:type owl:Class ; rdfs:subClassOf :Acteur .
+
+:OrganisationProductrice rdf:type owl:Class ; rdfs:subClassOf :Organisation .
+
+:Entreprise rdf:type owl:Class ; rdfs:subClassOf :OrganisationProductrice .
+:Startup rdf:type owl:Class ; rdfs:subClassOf :Entreprise .
+:Laboratoire rdf:type owl:Class ; rdfs:subClassOf :OrganisationProductrice .
+:Université rdf:type owl:Class ; rdfs:subClassOf :OrganisationProductrice .
+
+:Pays rdf:type owl:Class .
+:Technologie rdf:type owl:Class .
+:Brevet rdf:type owl:Class .
+:TravailDeRecherche rdf:type owl:Class .
+:Domaine rdf:type owl:Class .
+:ProjetDeRecherche rdf:type owl:Class .
+
+### --- PROPRIÉTÉS D'OBJET --- ###
+
+# Localisation
+:estLocaliseEn rdf:type owl:ObjectProperty ;
+    rdfs:domain :Organisation ;
+    rdfs:range :Pays .
+
+# Actions des Personnes Productrices
+:aEcrit rdf:type owl:ObjectProperty ;
+    rdfs:domain :PersonneProductrice ;
+    rdfs:range :TravailDeRecherche .
+
+:aFonde rdf:type owl:ObjectProperty ;
+    rdfs:domain :PersonneProductrice ;
+    rdfs:range :Entreprise .
+
+:deposePar rdf:type owl:ObjectProperty ;
+    rdfs:domain :Brevet ;
+    rdfs:range :PersonneProductrice .
+
+:participeA rdf:type owl:ObjectProperty ;
+    rdfs:domain :PersonneProductrice ;
+    rdfs:range :ProjetDeRecherche .
+
+# Relations Institutionnelles
+:estAffilieA rdf:type owl:ObjectProperty ;
+    rdfs:domain :Chercheur ;
+    rdfs:range :Université .
+
+:collaboreAvec rdf:type owl:ObjectProperty ;
+    rdf:type owl:SymmetricProperty ;
+    rdfs:domain :Personne ;
+    rdfs:range :Personne .
+
+# Liens Techniques et Scientifiques
+:concerneLeDomaine rdf:type owl:ObjectProperty ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range :Domaine .
+
+:deriveDe rdf:type owl:ObjectProperty ;
+    rdfs:domain :Brevet ;
+    rdfs:range :TravailDeRecherche .
+
+:developpe rdf:type owl:ObjectProperty ;
+    rdfs:domain :Acteur ;
+    rdfs:range :Technologie .
+
+:estBrevete rdf:type owl:ObjectProperty ;
+    rdfs:domain :Technologie ;
+    rdfs:range :Brevet .
