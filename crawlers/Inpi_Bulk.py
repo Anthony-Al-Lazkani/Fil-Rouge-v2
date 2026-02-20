@@ -5,7 +5,7 @@ Open Patent Services), dans le cadre du projet Fil Rouge.
 
 
 USAGE:
-    Penser à autoriser l'application sur le portail développeur EPO (validité 20 min).
+    Penser à autoriser l'application sur le portail développeur EPO (validité 20 min) (l'appli s'appelle : fil-rouge-v2-inpi-ai)
     https://developers.epo.org/user/31706/app-detail/ed3afe02-dce8-47ef-a214-fd5a96a82652
 
     Lancer le serveur :
