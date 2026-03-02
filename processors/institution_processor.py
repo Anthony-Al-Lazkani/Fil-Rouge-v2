@@ -1,6 +1,8 @@
 from database import get_session
 from services.institution_service import InstitutionService
+from services.source_service import SourceService
 from schemas.institution import InstitutionCreate
+from schemas.source import SourceCreate
 from typing import List, Dict, Any
 
 
@@ -8,6 +10,16 @@ class InstitutionProcessor:
     def __init__(self):
         self.session = next(get_session())
         self.institution_service = InstitutionService()
+        self.source_service = SourceService()
+
+        self.openalex_source = self.source_service.create(
+            self.session,
+            SourceCreate(
+                name="openalex",
+                type="academic",
+                base_url="https://openalex.org/",
+            ),
+        )
 
     def exists(self, external_id: str) -> bool:
         """Check if an institution already exists in the DB"""
@@ -19,7 +31,7 @@ class InstitutionProcessor:
     def create_institution(self, inst_data: Dict[str, Any]):
         """Create institution in database"""
         institution = InstitutionCreate(
-            source="openalex",
+            source_id=self.openalex_source.id,
             external_id=inst_data.get("external_id"),
             ror=inst_data.get("ror"),
             display_name=inst_data.get("display_name", ""),

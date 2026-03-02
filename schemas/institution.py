@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 
 
 class InstitutionBase(BaseModel):
-    source: Optional[str] = Field("openalex", description="Source of data")
+    source_id: Optional[int] = Field(None, description="Source ID from source table")
     external_id: Optional[str] = Field(None, description="External ID from OpenAlex")
     ror: Optional[str] = Field(None, description="ROR ID")
     display_name: str = Field(..., description="Display name")
@@ -31,7 +31,7 @@ class InstitutionCreate(InstitutionBase):
 
 
 class InstitutionUpdate(BaseModel):
-    source: Optional[str] = None
+    source_id: Optional[int] = None
     external_id: Optional[str] = None
     ror: Optional[str] = None
     display_name: Optional[str] = None

@@ -1,11 +1,12 @@
 from typing import Optional, List
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column, JSON
+from models.source import Source
 
 
 class Institution(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    source: Optional[str] = Field(default="openalex", index=True)
+    source_id: Optional[int] = Field(default=None, foreign_key="source.id", index=True)
     external_id: Optional[str] = Field(default=None, index=True, unique=True)
     ror: Optional[str] = Field(default=None, index=True)
 
