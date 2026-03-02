@@ -1,5 +1,6 @@
 from database import get_session
 from models import ResearchItem
+from models.source import Source
 from services.affiliation_service import AffiliationService
 from services.author_service import AuthorService
 from services.research_item_service import ResearchItemService
@@ -28,7 +29,6 @@ class AffiliationProcessor:
                 select(Organization).where(Organization.external_id == external_id)
             ).first()
         if ror:
-            # Normalize ROR ID format
             if ror.startswith("https://ror.org/"):
                 ror = ror.replace("https://ror.org/", "")
             return self.session.exec(
@@ -39,16 +39,14 @@ class AffiliationProcessor:
     def find_institution(self, external_id: str = None, ror: str = None):
         """Find institution by external_id or ror"""
         if external_id:
-            # Normalize OpenAlex ID format
             if external_id.startswith("https://openalex.org/"):
-                external_id = external_id.replace("https://openalex.org/", "")
+                ext_id = external_id.replace("https://openalex.org/", "")
+            else:
+                ext_id = external_id
             return self.session.exec(
-                select(Institution).where(
-                    Institution.external_id.like(f"%{external_id}%")
-                )
+                select(Institution).where(Institution.external_id == ext_id)
             ).first()
         if ror:
-            # Normalize ROR ID format
             if ror.startswith("https://ror.org/"):
                 ror = ror.replace("https://ror.org/", "")
             return self.session.exec(
@@ -56,42 +54,69 @@ class AffiliationProcessor:
             ).first()
         return None
 
+    def get_source_name(self, source_id: int) -> str:
+        """Get source name by ID"""
+        source = self.session.exec(select(Source).where(Source.id == source_id)).first()
+        return source.name if source else "unknown"
+
     def create_affiliation(
         self,
         author_external_id: str,
         research_item_id: int,
+        research_item_data: dict,
+        author_full_name: str,
+        author_orcid: str,
         aff_data: dict,
         role: str = None,
     ):
-        """Create an affiliation record"""
-        external_id = aff_data.get("id")
-        ror = aff_data.get("ror")
-        display_name = aff_data.get("display_name")
-        country_code = aff_data.get("country_code")
-        affiliation_type = aff_data.get("type")
+        """Create an affiliation record with comprehensive information"""
+        # Get institution info from affiliation data
+        inst_external_id = aff_data.get("id")  # OpenAlex ID
+        inst_name = aff_data.get("display_name")
+        inst_ror = aff_data.get("ror")
+        inst_country_code = aff_data.get("country_code")
+        inst_type = aff_data.get("type")
 
-        organization_id = None
-        institution_id = None
+        # Try to find institution in DB
+        institution = self.find_institution(external_id=inst_external_id, ror=inst_ror)
 
-        org = self.find_organization(external_id=external_id, ror=ror)
-        if org:
-            organization_id = org.id
-        else:
-            inst = self.find_institution(external_id=external_id, ror=ror)
-            if inst:
-                institution_id = inst.id
+        if institution:
+            inst_external_id = institution.external_id
+            inst_name = institution.display_name
+            inst_ror = institution.ror
+            inst_country_code = institution.country_code
+            inst_type = institution.type
+
+        # Try to find organization in DB
+        org = self.find_organization(external_id=inst_external_id, ror=inst_ror)
+        organization_id = org.id if org else None
+        organization_name = org.name if org else None
 
         aff_data_create = AffiliationCreate(
-            author_external_id=author_external_id,
+            # Research Item
             research_item_id=research_item_id,
+            research_item_external_id=research_item_data.get("external_id", ""),
+            research_item_doi=research_item_data.get("doi"),
+            research_item_title=research_item_data.get("title"),
+            research_item_year=research_item_data.get("year"),
+            research_item_source=research_item_data.get("source_name"),
+            # Author
+            author_external_id=author_external_id,
+            author_full_name=author_full_name,
+            author_orcid=author_orcid,
+            # Institution
+            institution_external_id=inst_external_id,
+            institution_name=inst_name,
+            institution_ror=inst_ror,
+            institution_country_code=inst_country_code,
+            institution_type=inst_type,
+            # Organization
             organization_id=organization_id,
-            institution_id=institution_id,
-            external_id=external_id,
-            display_name=display_name,
-            ror=ror,
-            country_code=country_code,
-            affiliation_type=affiliation_type,
+            organization_name=organization_name,
+            # Role
             role=role,
+            # Raw data
+            raw_affiliation_data=aff_data,
         )
         return self.affiliation_service.create(self.session, aff_data_create)
 
@@ -104,6 +129,18 @@ class AffiliationProcessor:
         if not item:
             return 0
 
+        # Get source name
+        source_name = self.get_source_name(item.source_id)
+
+        # Research item data for affiliations
+        research_item_data = {
+            "external_id": item.external_id,
+            "doi": item.doi,
+            "title": item.title,
+            "year": item.year,
+            "source_name": source_name,
+        }
+
         metrics = item.metrics or {}
         authors_data = metrics.get("authors", [])
 
@@ -114,18 +151,37 @@ class AffiliationProcessor:
             if not author_external_id:
                 continue
 
+            author_full_name = author_data.get("display_name")
+            author_orcid = author_data.get("orcid")
+
             role = None
             if author_data.get("roles"):
                 role = author_data["roles"][0] if author_data["roles"] else None
 
             affiliations = author_data.get("affiliations", [])
             if not affiliations:
-                self.create_affiliation(author_external_id, item.id, {}, role)
+                self.create_affiliation(
+                    author_external_id,
+                    item.id,
+                    research_item_data,
+                    author_full_name,
+                    author_orcid,
+                    {},
+                    role,
+                )
                 created_count += 1
                 continue
 
             for aff in affiliations:
-                self.create_affiliation(author_external_id, item.id, aff, role)
+                self.create_affiliation(
+                    author_external_id,
+                    item.id,
+                    research_item_data,
+                    author_full_name,
+                    author_orcid,
+                    aff,
+                    role,
+                )
                 created_count += 1
 
         return created_count

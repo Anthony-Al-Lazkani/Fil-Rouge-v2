@@ -8,9 +8,9 @@ class AffiliationService:
     def create(self, session: Session, data: AffiliationCreate):
         existing = session.exec(
             select(Affiliation).where(
-                Affiliation.author_id == data.author_id,
+                Affiliation.author_external_id == data.author_external_id,
                 Affiliation.research_item_id == data.research_item_id,
-                Affiliation.external_id == data.external_id,
+                Affiliation.institution_external_id == data.institution_external_id,
             )
         ).first()
 
@@ -33,9 +33,11 @@ class AffiliationService:
     def get_by_id(self, session: Session, aff_id: int):
         return session.exec(select(Affiliation).where(Affiliation.id == aff_id)).first()
 
-    def get_by_author(self, session: Session, author_id: int):
+    def get_by_author_external_id(self, session: Session, author_external_id: str):
         return session.exec(
-            select(Affiliation).where(Affiliation.author_id == author_id)
+            select(Affiliation).where(
+                Affiliation.author_external_id == author_external_id
+            )
         ).all()
 
     def get_by_research_item(self, session: Session, research_item_id: int):
@@ -48,13 +50,19 @@ class AffiliationService:
             select(Affiliation).where(Affiliation.organization_id == organization_id)
         ).all()
 
-    def get_by_institution(self, session: Session, institution_id: int):
+    def get_by_institution_external_id(
+        self, session: Session, institution_external_id: str
+    ):
         return session.exec(
-            select(Affiliation).where(Affiliation.institution_id == institution_id)
+            select(Affiliation).where(
+                Affiliation.institution_external_id == institution_external_id
+            )
         ).all()
 
     def get_by_ror(self, session: Session, ror: str):
-        return session.exec(select(Affiliation).where(Affiliation.ror == ror)).all()
+        return session.exec(
+            select(Affiliation).where(Affiliation.institution_ror == ror)
+        ).all()
 
     def count(self, session: Session) -> int:
         return session.exec(select(Affiliation)).all().__len__()
