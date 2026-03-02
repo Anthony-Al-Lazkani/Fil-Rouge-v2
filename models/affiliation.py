@@ -9,8 +9,8 @@ from sqlmodel import SQLModel, Field
 class Affiliation(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    # Les trois piliers de la relation
-    author_id: int = Field(foreign_key="author.id", index=True)
+    # Use external_id for author (OpenAlex ID, etc.) instead of internal author_id
+    author_external_id: str = Field(index=True)
     research_item_id: int = Field(foreign_key="researchitem.id", index=True)
 
     # Peut être soit organization soit institution (XOR - un des deux doit être non-null)

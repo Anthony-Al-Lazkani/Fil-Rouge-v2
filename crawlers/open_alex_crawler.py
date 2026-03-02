@@ -42,14 +42,14 @@ def crawl_openalex_ai() -> List[Dict[str, Any]]:
                 for idx, auth in enumerate(work.get("authorships", [])):
                     a = auth.get("author", {})
                     author_affiliations = []
-                    for aff in auth.get("affiliations", []):
+                    for inst in auth.get("institutions", []):
                         author_affiliations.append(
                             {
-                                "id": aff.get("id"),
-                                "display_name": aff.get("display_name"),
-                                "ror": aff.get("ror"),
-                                "country_code": aff.get("country_code"),
-                                "type": aff.get("type"),
+                                "id": inst.get("id"),
+                                "display_name": inst.get("display_name"),
+                                "ror": inst.get("ror"),
+                                "country_code": inst.get("country_code"),
+                                "type": inst.get("type"),
                             }
                         )
 

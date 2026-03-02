@@ -28,6 +28,9 @@ class AffiliationProcessor:
                 select(Organization).where(Organization.external_id == external_id)
             ).first()
         if ror:
+            # Normalize ROR ID format
+            if ror.startswith("https://ror.org/"):
+                ror = ror.replace("https://ror.org/", "")
             return self.session.exec(
                 select(Organization).where(Organization.ror == ror)
             ).first()
@@ -36,17 +39,29 @@ class AffiliationProcessor:
     def find_institution(self, external_id: str = None, ror: str = None):
         """Find institution by external_id or ror"""
         if external_id:
+            # Normalize OpenAlex ID format
+            if external_id.startswith("https://openalex.org/"):
+                external_id = external_id.replace("https://openalex.org/", "")
             return self.session.exec(
-                select(Institution).where(Institution.external_id == external_id)
+                select(Institution).where(
+                    Institution.external_id.like(f"%{external_id}%")
+                )
             ).first()
         if ror:
+            # Normalize ROR ID format
+            if ror.startswith("https://ror.org/"):
+                ror = ror.replace("https://ror.org/", "")
             return self.session.exec(
                 select(Institution).where(Institution.ror == ror)
             ).first()
         return None
 
     def create_affiliation(
-        self, author_id: int, research_item_id: int, aff_data: dict, role: str = None
+        self,
+        author_external_id: str,
+        research_item_id: int,
+        aff_data: dict,
+        role: str = None,
     ):
         """Create an affiliation record"""
         external_id = aff_data.get("id")
@@ -67,7 +82,7 @@ class AffiliationProcessor:
                 institution_id = inst.id
 
         aff_data_create = AffiliationCreate(
-            author_id=author_id,
+            author_external_id=author_external_id,
             research_item_id=research_item_id,
             organization_id=organization_id,
             institution_id=institution_id,
@@ -91,7 +106,6 @@ class AffiliationProcessor:
 
         metrics = item.metrics or {}
         authors_data = metrics.get("authors", [])
-        author_ids = metrics.get("author_ids", [])
 
         created_count = 0
 
@@ -100,25 +114,18 @@ class AffiliationProcessor:
             if not author_external_id:
                 continue
 
-            author = self.session.exec(
-                select(Author).where(Author.external_id == author_external_id)
-            ).first()
-
-            if not author:
-                continue
-
             role = None
             if author_data.get("roles"):
                 role = author_data["roles"][0] if author_data["roles"] else None
 
             affiliations = author_data.get("affiliations", [])
             if not affiliations:
-                self.create_affiliation(author.id, item.id, {}, role)
+                self.create_affiliation(author_external_id, item.id, {}, role)
                 created_count += 1
                 continue
 
             for aff in affiliations:
-                self.create_affiliation(author.id, item.id, aff, role)
+                self.create_affiliation(author_external_id, item.id, aff, role)
                 created_count += 1
 
         return created_count

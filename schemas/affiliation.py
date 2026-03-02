@@ -3,7 +3,9 @@ from pydantic import BaseModel, Field
 
 
 class AffiliationBase(BaseModel):
-    author_id: int = Field(..., description="ID of the author")
+    author_external_id: str = Field(
+        ..., description="External ID of the author (OpenAlex, etc.)"
+    )
     research_item_id: int = Field(..., description="ID of the research item")
     organization_id: Optional[int] = Field(None, description="ID of the organization")
     institution_id: Optional[int] = Field(None, description="ID of the institution")
@@ -20,7 +22,7 @@ class AffiliationCreate(AffiliationBase):
 
 
 class AffiliationUpdate(BaseModel):
-    author_id: Optional[int] = None
+    author_external_id: Optional[str] = None
     research_item_id: Optional[int] = None
     organization_id: Optional[int] = None
     institution_id: Optional[int] = None
