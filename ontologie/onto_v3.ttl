@@ -1,0 +1,261 @@
+@prefix : <http://www.semanticweb.org/s2b/ontologie#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+:S2B_Ontology rdf:type owl:Ontology .
+
+### --- CLASSES --- ###
+
+:Acteur rdf:type owl:Class .
+
+:Personne rdf:type owl:Class ;
+    rdfs:subClassOf :Acteur .
+
+:Chercheur rdf:type owl:Class ;
+    rdfs:subClassOf :Personne .
+
+:Entrepreneur rdf:type owl:Class ;
+    rdfs:subClassOf :Personne .
+
+:Organisation rdf:type owl:Class ;
+    rdfs:subClassOf :Acteur .
+
+:OrganisationFacilitatrice rdf:type owl:Class ;
+    rdfs:subClassOf :Organisation .
+
+:OrganisationProductrice rdf:type owl:Class ;
+    rdfs:subClassOf :Organisation .
+
+:Laboratoire rdf:type owl:Class ;
+    rdfs:subClassOf :OrganisationProductrice .
+
+:Université rdf:type owl:Class ;
+    rdfs:subClassOf :OrganisationProductrice .
+
+:Entreprise rdf:type owl:Class ;
+    rdfs:subClassOf :OrganisationProductrice .
+
+:Startup rdf:type owl:Class ;
+    rdfs:subClassOf :Entreprise .
+
+:Pays rdf:type owl:Class .
+:Domaine rdf:type owl:Class .
+:Technologie rdf:type owl:Class .
+:Brevet rdf:type owl:Class .
+
+:RessourceDeConnaissance rdf:type owl:Class .
+:TravailDeRecherche rdf:type owl:Class ;
+    rdfs:subClassOf :RessourceDeConnaissance .
+
+### --- PROPRIÉTÉS D'OBJET --- ###
+
+:developpe rdf:type owl:ObjectProperty ;
+    rdfs:label "développe" ;
+    rdfs:domain :Acteur ;
+    rdfs:range :Technologie .
+
+:estBrevete rdf:type owl:ObjectProperty ;
+    rdfs:label "estBreveté" ;
+    rdfs:domain :Technologie ;
+    rdfs:range :Brevet .
+
+:collaboreAvec rdf:type owl:ObjectProperty ;
+    rdfs:label "collaboreAvec" ;
+    rdf:type owl:SymmetricProperty ;
+    rdfs:domain :Personne ;
+    rdfs:range :Personne .
+
+:dirige rdf:type owl:ObjectProperty ;
+    rdfs:label "dirige" ;
+    rdfs:domain :Personne ;
+    rdfs:range :Entreprise .
+
+:aEcrit rdf:type owl:ObjectProperty ;
+    rdfs:label "aEcrit" ;
+    rdfs:domain :Personne ;
+    rdfs:range :TravailDeRecherche .
+
+:ecritPar rdf:type owl:ObjectProperty ;
+    rdfs:label "écritPar" ;
+    owl:inverseOf :aEcrit ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range :Personne .
+
+:aFonde rdf:type owl:ObjectProperty ;
+    rdfs:label "aFondé" ;
+    rdfs:domain :Personne ;
+    rdfs:range :Entreprise .
+
+:aPourAssocie rdf:type owl:ObjectProperty ;
+    rdfs:label "aPourAssocié" ;
+    rdf:type owl:SymmetricProperty ;
+    rdfs:domain :Entrepreneur ;
+    rdfs:range :Entrepreneur .
+
+:aPourCoauteur rdf:type owl:ObjectProperty ;
+    rdfs:label "aPourCoauteur" ;
+    rdf:type owl:SymmetricProperty ;
+    rdfs:domain :Chercheur ;
+    rdfs:range :Chercheur .
+
+:estAffilieA rdf:type owl:ObjectProperty ;
+    rdfs:label "estAffilié à" ;
+    rdfs:domain :Chercheur ;
+    rdfs:range :Université .
+
+:aPourDomaine rdf:type owl:ObjectProperty ;
+    rdfs:label "aPourDomaine" ;
+    rdfs:domain :RessourceDeConnaissance ;
+    rdfs:range :Domaine .
+
+:deriveDe rdf:type owl:ObjectProperty ;
+    rdfs:label "dériveDe" ;
+    rdfs:domain :Brevet ;
+    rdfs:range :TravailDeRecherche .
+
+:cite rdf:type owl:ObjectProperty ;
+    rdfs:label "cite" ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range :TravailDeRecherche .
+
+:estDeposePar rdf:type owl:ObjectProperty ;
+    rdfs:label "estDéposéPar" ;
+    rdfs:domain :Brevet ;
+    rdfs:range :Organisation .
+
+:favorise rdf:type owl:ObjectProperty ;
+    rdfs:label "favorise" ;
+    rdfs:domain :OrganisationFacilitatrice ;
+    rdfs:range :Personne .
+
+:finance rdf:type owl:ObjectProperty ;
+    rdfs:label "finance" ;
+    rdfs:domain :OrganisationFacilitatrice ;
+    rdfs:range :TravailDeRecherche .
+
+:estLocaliseEn rdf:type owl:ObjectProperty ;
+    rdfs:label "estLocaliséEn" ;
+    rdfs:domain :Organisation ;
+    rdfs:range :Pays .
+
+### --- PROPRIÉTÉS DE DONNÉES --- ###
+
+# Personne
+:aPourNom rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Personne ;
+    rdfs:range xsd:string .
+
+# Chercheur
+:aPourId rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Chercheur ;
+    rdfs:range xsd:string .
+
+:aPourOrcid rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Chercheur ;
+    rdfs:range xsd:string .
+
+:nbDePublications rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Chercheur ;
+    rdfs:range xsd:integer .
+
+# Organisation
+:aPourNomOrganisation rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Organisation ;
+    rdfs:range xsd:string .
+
+:typeOrganisation rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Organisation ;
+    rdfs:range xsd:string .
+
+:dateDeCreation rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Organisation ;
+    rdfs:range xsd:date .
+
+# Organisation Productrice
+:nbDeBrevets rdf:type owl:DatatypeProperty ;
+    rdfs:domain :OrganisationProductrice ;
+    rdfs:range xsd:integer .
+
+# Entreprise
+:secteur rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Entreprise ;
+    rdfs:range xsd:string .
+
+:lieAlIA rdf:type owl:DatatypeProperty ;
+    rdfs:label "liéAlIA" ;
+    rdfs:domain :Entreprise ;
+    rdfs:range xsd:boolean .
+
+:nbInvestisseurs rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Entreprise ;
+    rdfs:range xsd:integer .
+
+:totalFunding rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Entreprise ;
+    rdfs:range xsd:decimal .
+
+# Pays
+:codePays rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Pays ;
+    rdfs:range xsd:string .
+
+# Domaine
+:aPourNomFR rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Domaine ;
+    rdfs:range xsd:string .
+
+:aPourNameEN rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Domaine ;
+    rdfs:range xsd:string .
+
+:code rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Domaine ;
+    rdfs:range xsd:string .
+
+# Travail de Recherche
+:nbCitations rdf:type owl:DatatypeProperty ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:integer .
+
+:aPourDOI rdf:type owl:DatatypeProperty ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:string .
+
+:titre rdf:type owl:DatatypeProperty ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:string .
+
+:resume rdf:type owl:DatatypeProperty ;
+    rdfs:label "résumé" ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:string .
+
+:dateDePublication rdf:type owl:DatatypeProperty ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:date .
+
+:langue rdf:type owl:DatatypeProperty ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:string .
+
+:motsCles rdf:type owl:DatatypeProperty ;
+    rdfs:label "motsClés" ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:string .
+
+# Ressource de Connaissance
+:annee rdf:type owl:DatatypeProperty ;
+    rdfs:label "année" ;
+    rdfs:domain :RessourceDeConnaissance ;
+    rdfs:range xsd:gYear .
+
+:type rdf:type owl:DatatypeProperty ;
+    rdfs:domain :RessourceDeConnaissance ;
+    rdfs:range xsd:string .
+
+:aPourIdRessource rdf:type owl:DatatypeProperty ;
+    rdfs:label "aPourId" ;
+    rdfs:domain :RessourceDeConnaissance ;
+    rdfs:range xsd:string .
