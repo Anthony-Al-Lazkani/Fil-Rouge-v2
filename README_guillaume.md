@@ -4,21 +4,26 @@
 uv run python -m database.initialize (si on veut réinitialiser la BDD)
 uv run uvicorn main:app --reload
 
-uv run python -m crawlers.Hal_Bulk_Publications
-uv run python -m crawlers.arxiv_crawler
-uv run python -m crawlers.semantic_scholar_main
-uv run python -m crawlers.open_alex_crawler
-uv run python -m crawlers.Inpi_Bulk
+uv run python -m scripts.pipeline --source openalex
+     uv run python -m crawlers.Hal_Bulk_Publications
+     uv run python -m crawlers.arxiv_crawler
+     uv run python -m crawlers.semantic_scholar_main
+     uv run python -m crawlers.open_alex_crawler
+     uv run python -m crawlers.Inpi_Bulk
 
 uv run python -m services.normalization_doublons
 
 uv run python -m services.extract_authors
 uv run python -m services.extract_organizations
 
-uv run ontologie/peupler_ontologie_v2.py 
-uv run ontologie/diag_graph.py
+uv run ontologie/peupler_ontologie_v3.py 
 uv run ontologie/interroger_onto.py
 
+
+19-02-2026:
+     Nouveau .ttl avec ontologie de Caro
+     Nouveau script pour peupler l'ontologie
+     Interrogation pour avoir les domaines les plus tendances
 
 16-02-2026:
      Travail sur un prototype d'ontologie
