@@ -2,6 +2,7 @@ from database import get_session
 from services.organization_service import OrganizationService
 from services.source_service import SourceService
 from schemas.organization import OrganizationCreate
+from schemas.research_item import ResearchItemCreate
 from services.research_item_service import ResearchItemService
 from schemas.source import SourceCreate
 from typing import List, Dict, Any
