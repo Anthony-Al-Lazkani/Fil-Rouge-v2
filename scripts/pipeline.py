@@ -17,6 +17,10 @@ from processors.affiliation_processor import AffiliationProcessor
 from processors.arxiv_processor import ArxivProcessor
 from processors.semantic_scholar_processor import SemanticScholarProcessor
 from processors.hal_processor import HalProcessor
+from crawlers.scanR_crawler import crawl_scanr_ai
+from processors.scanR_processor import ScanRProcessor
+from crawlers.open_corporates_crawler import crawl_opencorporates_ai
+from processors.open_corporates_processor import OpenCorporatesProcessor
 
 
 def run_openalex_pipeline():
@@ -107,6 +111,32 @@ def run_hal_pipeline():
 
     return processed_count
 
+def run_scanr_pipeline():
+    print("=== Running ScanR Pipeline ===")
+    orgs = crawl_scanr_ai()
+    processor = ScanRProcessor()
+    count = processor.process_organizations(orgs)
+    print(f"Successfully processed {count} ScanR organizations")
+    return count
+
+
+def run_open_corporates_pipeline():
+    print("=== Running Open Corporates Pipeline ===")
+    
+    # 1. On récupère les données (limité à 10 pour le POC dans le crawler)
+    companies = crawl_opencorporates_ai()
+    
+    # 2. On initialise le processor spécifique
+    processor = OpenCorporatesProcessor()
+    
+    # 3. On insère en base
+    count = processor.process_companies(companies)
+    
+    print(f"Successfully processed {count} OpenCorporates organizations")
+    return count
+
+
+
 
 def run_affiliation_pipeline():
     """Run affiliation processing pipeline"""
@@ -126,15 +156,7 @@ def main():
     )
     parser.add_argument(
         "--source",
-        choices=[
-            "openalex",
-            "openalex_institutions",
-            "affiliations",
-            "arxiv",
-            "semantic_scholar",
-            "hal",
-            "all",
-        ],
+        choices=["openalex", "arxiv", "semantic_scholar", "hal", "scanr", "open_corporates", "all"],
         default="all",
         help="Which source to process (default: all)",
     )
@@ -169,6 +191,14 @@ def main():
 
     if args.source in ["hal", "all"]:
         total_processed += run_hal_pipeline()
+        print()
+    
+    if args.source in ["scanr", "all"]:
+        total_processed += run_scanr_pipeline()
+        print()
+    
+    if args.source in ["open_corporates", "all"]:
+        total_processed += run_open_corporates_pipeline()
         print()
 
     print(f"=== Pipeline Complete ===")
