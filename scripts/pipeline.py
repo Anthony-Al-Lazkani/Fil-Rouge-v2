@@ -7,10 +7,13 @@ This script connects crawlers with processors to complete the data flow.
 import argparse
 from database.initialize import create_db_and_tables
 from crawlers.open_alex_crawler import crawl_openalex_ai
+from crawlers.open_alex_institution_crawler import crawl_openalex_institutions
 from crawlers.arxiv_crawler import crawl_ai_articles
 from crawlers.semantic_scholar_crawler import crawl_semantic_scholar_ai
 from crawlers.hal_crawler import crawl_hal_ai
 from processors.openalex_processor import OpenAlexProcessor
+from processors.institution_processor import InstitutionProcessor
+from processors.affiliation_processor import AffiliationProcessor
 from processors.arxiv_processor import ArxivProcessor
 from processors.semantic_scholar_processor import SemanticScholarProcessor
 from processors.hal_processor import HalProcessor
@@ -30,6 +33,24 @@ def run_openalex_pipeline():
     processor = OpenAlexProcessor()
     processed_count = processor.process_works(works)
     print(f"Successfully processed {processed_count} OpenAlex works")
+
+    return processed_count
+
+
+def run_openalex_institution_pipeline():
+    """Run OpenAlex institution crawling and processing pipeline"""
+    print("=== Running OpenAlex Institution Pipeline ===")
+
+    # 1. Crawl the data
+    print("Crawling OpenAlex institutions...")
+    institutions = crawl_openalex_institutions()
+    print(f"Crawled {len(institutions)} institutions from OpenAlex")
+
+    # 2. Process and insert into database
+    print("Processing and inserting into database...")
+    processor = InstitutionProcessor()
+    processed_count = processor.process_institutions(institutions)
+    print(f"Successfully processed {processed_count} OpenAlex institutions")
 
     return processed_count
 
@@ -87,13 +108,33 @@ def run_hal_pipeline():
     return processed_count
 
 
+def run_affiliation_pipeline():
+    """Run affiliation processing pipeline"""
+    print("=== Running Affiliation Pipeline ===")
+
+    print("Processing affiliations from research items...")
+    processor = AffiliationProcessor()
+    processed_count = processor.process_all_research_items()
+    print(f"Successfully processed {processed_count} affiliations")
+
+    return processed_count
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run data crawling and processing pipelines"
     )
     parser.add_argument(
         "--source",
-        choices=["openalex", "arxiv", "semantic_scholar", "hal", "all"],
+        choices=[
+            "openalex",
+            "openalex_institutions",
+            "affiliations",
+            "arxiv",
+            "semantic_scholar",
+            "hal",
+            "all",
+        ],
         default="all",
         help="Which source to process (default: all)",
     )
@@ -108,6 +149,14 @@ def main():
 
     if args.source in ["openalex", "all"]:
         total_processed += run_openalex_pipeline()
+        print()
+
+    if args.source in ["openalex_institutions", "all"]:
+        total_processed += run_openalex_institution_pipeline()
+        print()
+
+    if args.source in ["affiliations", "all"]:
+        total_processed += run_affiliation_pipeline()
         print()
 
     if args.source in ["arxiv", "all"]:
