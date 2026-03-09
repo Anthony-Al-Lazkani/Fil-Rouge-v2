@@ -14,6 +14,8 @@ from processors.openalex_processor import OpenAlexProcessor
 from processors.arxiv_processor import ArxivProcessor
 from processors.semantic_scholar_processor import SemanticScholarProcessor
 from processors.hal_processor import HalProcessor
+from crawlers.scanR_crawler import crawl_scanr_ai
+from processors.scanR_processor import ScanRProcessor
 
 
 def run_openalex_pipeline():
@@ -86,6 +88,14 @@ def run_hal_pipeline():
 
     return processed_count
 
+def run_scanr_pipeline():
+    print("=== Running ScanR Pipeline ===")
+    orgs = crawl_scanr_ai()
+    processor = ScanRProcessor()
+    count = processor.process_organizations(orgs)
+    print(f"Successfully processed {count} ScanR organizations")
+    return count
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -93,7 +103,7 @@ def main():
     )
     parser.add_argument(
         "--source",
-        choices=["openalex", "arxiv", "semantic_scholar", "hal", "all"],
+        choices=["openalex", "arxiv", "semantic_scholar", "hal", "scanr", "all"],
         default="all",
         help="Which source to process (default: all)",
     )
@@ -120,6 +130,10 @@ def main():
 
     if args.source in ["hal", "all"]:
         total_processed += run_hal_pipeline()
+        print()
+    
+    if args.source in ["scanr", "all"]:
+        total_processed += run_scanr_pipeline()
         print()
 
     print(f"=== Pipeline Complete ===")
