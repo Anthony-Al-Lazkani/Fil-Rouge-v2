@@ -1,10 +1,8 @@
 from database import get_session
 from services.organization_service import OrganizationService
-from services.source_service import SourceService
+from services.research_item_service import ResearchItemService
 from schemas.organization import OrganizationCreate
 from schemas.research_item import ResearchItemCreate
-from services.research_item_service import ResearchItemService
-from schemas.source import SourceCreate
 from typing import List, Dict, Any
 
 class ScanRProcessor:
@@ -12,37 +10,45 @@ class ScanRProcessor:
         self.session = next(get_session())
         self.org_service = OrganizationService()
         self.item_service = ResearchItemService()
-        self.source_service = SourceService()
-
-        # On s'assure d'avoir les deux sources en base
-        self.scanr_source = self.source_service.create(self.session, SourceCreate(name="scanr", type="public_research"))
-        self.epo_source = self.source_service.create(self.session, SourceCreate(name="epo_ops", type="patent"))
 
     def process_organizations(self, orgs: List[Dict[str, Any]]) -> int:
         count = 0
         for data in orgs:
-            # 1. Création de l'Organisation
-            org = self.org_service.create(self.session, OrganizationCreate(
-                source_id=self.scanr_source.id,
+            # 1. Création de l'Organisation (Mapping strict avec ton modèle)
+            org_create = OrganizationCreate(
+                source="scanr",
                 external_id=data["external_id"],
                 name=data["name"],
+                clean_name=data["name"].strip().upper(),
                 type=data["type"],
                 city=data["city"],
+                founded_date=data["founded_date"],
+                operating_status=data["operating_status"],
+                is_ai_related=True,
                 raw=data["raw"]
-            ))
+            )
+            
+            self.org_service.create(self.session, org_create)
 
-            # 2. Création des ResearchItems (Brevets) liés
-            for p_data in data.get("patents", []):
+            # 2. Extraction et création des brevets (ResearchItems)
+            # Les brevets sont nichés dans le raw data de ScanR
+            raw_source = data.get("raw", {})
+            patents = raw_source.get("patents", [])
+            
+            for p in patents:
                 try:
-                    self.item_service.create(self.session, ResearchItemCreate(
-                        source_id=self.epo_source.id,
-                        external_id=p_data["external_id"],
-                        title=p_data["title"],
+                    # Ici on peut utiliser un ID de source fixe pour EPO si tu veux
+                    # Ou simplement marquer la provenance dans le raw du ResearchItem
+                    item_create = ResearchItemCreate(
+                        source_id=2, # Assure-toi que l'ID 2 correspond à EPO ou ScanR dans ta table Source
+                        external_id=str(p.get("id")),
+                        title=p.get("title", {}).get("fr") or p.get("title", {}).get("default"),
                         type="patent",
-                        raw={"discovery_source": "scanr", "owner_siren": data["external_id"]}
-                    ))
-                except:
-                    continue # Ignore si le brevet existe déjà (unique=true sur external_id)
+                        raw={"owner_siren": data["external_id"], "scanr_data": p}
+                    )
+                    self.item_service.create(self.session, item_create)
+                except Exception:
+                    continue # Doublon de brevet probable
 
             count += 1
         return count

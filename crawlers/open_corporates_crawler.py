@@ -1,59 +1,56 @@
 import os
-import time
 import requests
+import time
 from dotenv import load_dotenv
 from typing import List, Dict, Any
 
-# CONFIG POC
 load_dotenv()
 
-MAX_POC_RECORDS = 10
-SEARCH_QUERY = "intelligence artificielle"
-JURISDICTION = "fr"
-
-def crawl_opencorporates_ai() -> List[Dict[str, Any]]:
+def crawl_opencorporates_ai(limit: int = 5) -> List[Dict[str, Any]]:
     api_key = os.getenv("OPENCORPORATES_API_KEY")
-    base_url = "https://api.opencorporates.com/v0.4/companies/search"
-    
-    all_companies = []
+    search_url = "https://api.opencorporates.com/v0.4/companies/search"
     
     params = {
-        "q": SEARCH_QUERY,
-        "jurisdiction_code": JURISDICTION,
+        "q": "intelligence artificielle",
+        "jurisdiction_code": "fr",
         "api_token": api_key,
-        "per_page": MAX_POC_RECORDS 
+        "per_page": limit
     }
 
-    print(f"=== Crawling OpenCorporates POC (Query: {SEARCH_QUERY}) ===")
-
+    detailed_results = []
     try:
-        response = requests.get(base_url, params=params)
-        response.raise_for_status()
-        
-        results = response.json().get("results", {}).get("companies", [])
-        
-        for item in results:
+        print(f"[*] Recherche initiale via /search...")
+        resp = requests.get(search_url, params=params)
+        resp.raise_for_status()
+        search_results = resp.json().get("results", {}).get("companies", [])
+        print(f"[+] {len(search_results)} entreprises trouvées. Début de l'enrichissement...")
+
+        for item in search_results:
             co = item.get("company")
-            if not co:
-                continue
-                
-            # On construit la structure de donnée propre
-            company_data = {
-                "external_id": co.get("company_number"),
-                "name": co.get("name"),
-                "type": co.get("company_type"),
-                "jurisdiction": co.get("jurisdiction_code"),
-                "founded_date": co.get("incorporation_date"),
-                "operating_status": co.get("current_status"),
-                "raw": co
-            }
-            all_companies.append(company_data)
+            if not co: continue
             
-            if len(all_companies) >= MAX_POC_RECORDS:
-                break
+            # Appel détaillé
+            jur = co['jurisdiction_code']
+            num = co['company_number']
+            detail_url = f"https://api.opencorporates.com/v0.4/companies/{jur}/{num}"
+            
+            try:
+                print(f"    -> Enrichissement : {co['name']} ({num})")
+                d_resp = requests.get(detail_url, params={"api_token": api_key})
+                if d_resp.status_code == 200:
+                    full_data = d_resp.json().get("results", {}).get("company")
+                    if full_data:
+                        detailed_results.append(full_data)
+                else:
+                    print(f"    [!] Échec détail (Code: {d_resp.status_code})")
+            except Exception as e:
+                print(f"    [!] Erreur sur {num}: {e}")
+            
+            time.sleep(0.5) # Crucial pour ne pas se faire bannir
 
     except Exception as e:
-        print(f"[ERROR] OpenCorporates crawl failed: {e}")
+        print(f"[ERROR] Crawler crash: {e}")
+        return []
 
-    print(f"Done. Collected {len(all_companies)} companies for POC.")
-    return all_companies
+    print(f"[*] Crawler terminé. {len(detailed_results)} fiches complètes prêtes.")
+    return detailed_results
