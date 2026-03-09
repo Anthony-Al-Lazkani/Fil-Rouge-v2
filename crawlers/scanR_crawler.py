@@ -44,25 +44,29 @@ def crawl_scanr_ai(query: str = "intelligence artificielle", max_pages: int = 6)
             for hit in hits:
                 source = hit.get("_source", {})
                 
-                # Extraction des industries (Domaines ERC ou mots-clés)
-                domains = [d.get("label", {}).get("default") for d in source.get("domains", []) if d.get("label")]
-                
-                # Extraction de la date de création
-                creation_year = source.get("creationYear")
+                # 1. Pivot SIREN
+                siren = next((item.get("id") for item in source.get("externalIds", []) if item.get("type") == "siren"), source.get("id"))
+
+                # 2. Récupération des brevets liés
+                extracted_patents = []
+                for p in source.get("patents", []):
+                    extracted_patents.append({
+                        "external_id": str(p.get("id")), # Identifiant brevet ScanR
+                        "title": p.get("title", {}).get("fr") or p.get("title", {}).get("default"),
+                        "type": "patent",
+                        "source_name": "scanr_link" 
+                    })
                 
                 org_data = {
-                    "external_id": source.get("id"),
-                    "name": source.get("label", {}).get("default") or source.get("label", {}).get("fr", "Sans nom"),
-                    "type": source.get("kind", ["organization"])[0] if isinstance(source.get("kind"), list) else source.get("kind"),
-                    "country": "France",
+                    "external_id": siren,
+                    "name": source.get("label", {}).get("default") or "Sans nom",
+                    "type": "company" if source.get("is_main_parent") else "facility",
                     "city": source.get("address", [{}])[0].get("city") if source.get("address") else None,
-                    "description": source.get("description", {}).get("default"),
-                    "website": source.get("links", [{}])[0].get("url") if source.get("links") else None,
-                    "founded_date": str(creation_year) if creation_year else None,
+                    "founded_date": str(source.get("creationYear")) if source.get("creationYear") else None,
                     "operating_status": source.get("status"),
-                    "industries": domains,
                     "is_ai_related": True,
-                    "raw": source  # On insère tout l'objet ici pour ne rien perdre
+                    "patents": extracted_patents, # On passe la liste au processor
+                    "raw": source 
                 }
                 all_results.append(org_data)
            

@@ -16,6 +16,8 @@ from processors.semantic_scholar_processor import SemanticScholarProcessor
 from processors.hal_processor import HalProcessor
 from crawlers.scanR_crawler import crawl_scanr_ai
 from processors.scanR_processor import ScanRProcessor
+from crawlers.open_corporates_crawler import crawl_opencorporates_ai
+from processors.open_corporates_processor import OpenCorporatesProcessor
 
 
 def run_openalex_pipeline():
@@ -97,13 +99,31 @@ def run_scanr_pipeline():
     return count
 
 
+def run_open_corporates_pipeline():
+    print("=== Running Open Corporates Pipeline ===")
+    
+    # 1. On récupère les données (limité à 10 pour le POC dans le crawler)
+    companies = crawl_opencorporates_ai()
+    
+    # 2. On initialise le processor spécifique
+    processor = OpenCorporatesProcessor()
+    
+    # 3. On insère en base
+    count = processor.process_companies(companies)
+    
+    print(f"Successfully processed {count} OpenCorporates organizations")
+    return count
+
+
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run data crawling and processing pipelines"
     )
     parser.add_argument(
         "--source",
-        choices=["openalex", "arxiv", "semantic_scholar", "hal", "scanr", "all"],
+        choices=["openalex", "arxiv", "semantic_scholar", "hal", "scanr", "open_corporates", "all"],
         default="all",
         help="Which source to process (default: all)",
     )
@@ -134,6 +154,10 @@ def main():
     
     if args.source in ["scanr", "all"]:
         total_processed += run_scanr_pipeline()
+        print()
+    
+    if args.source in ["open_corporates", "all"]:
+        total_processed += run_open_corporates_pipeline()
         print()
 
     print(f"=== Pipeline Complete ===")
