@@ -5,6 +5,7 @@ from schemas.organization import OrganizationCreate
 from schemas.source import SourceCreate
 from typing import List, Dict, Any
 
+
 class OpenCorporatesProcessor:
     def __init__(self):
         self.session = next(get_session())
@@ -25,22 +26,24 @@ class OpenCorporatesProcessor:
 
         for co_data in companies:
             # On vérifie si elle existe déjà via external_id (SIREN)
-            existing = self.org_service.get_by_external_id(self.session, co_data["external_id"])
+            existing = self.org_service.get_by_external_id(
+                self.session, co_data["external_id"]
+            )
             if existing:
                 continue
 
             org_create = OrganizationCreate(
-                source_id=self.oc_source.id,
+                source="opencorporates",
                 external_id=co_data["external_id"],
                 name=co_data["name"],
                 type=co_data["type"],
-                country="France",
+                country=co_data["jurisdiction"],
                 founded_date=co_data["founded_date"],
                 operating_status=co_data["operating_status"],
                 is_ai_related=True,
-                raw=co_data["raw"]
+                raw=co_data["raw"],
             )
-            
+
             self.org_service.create(self.session, org_create)
             processed_count += 1
 

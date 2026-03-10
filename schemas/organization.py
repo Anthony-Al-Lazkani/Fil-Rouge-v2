@@ -42,6 +42,7 @@ class OrganizationBase(BaseModel):
     number_of_founders: Optional[int] = Field(None, description="Number of founders")
     is_ai_related: Optional[bool] = Field(None, description="AI related")
     ai_focus_percent: Optional[Union[int, str]] = Field(None, description="AI focus %")
+    raw: Optional[dict] = Field(default_factory=dict, description="Raw data")
 
 
 class OrganizationCreate(OrganizationBase):
