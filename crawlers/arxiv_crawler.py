@@ -4,7 +4,13 @@ Crawler pour l'extraction automatisée de publications depuis l'API arXiv.
 Ce script interroge les archives d'arXiv pour récupérer les derniers travaux en IA 
 (Computer Science / Machine Learning / Artificial Intelligence).
 
-Variables de contrôle (Pipeline Léger vs Massif) :
+Limitations Techniques :
+- DOI : Généralement NULL. arXiv étant un dépôt de preprints, le DOI n'est attribué 
+  qu'après publication en revue (souvent non répertorié dans le flux API initial).
+- Affiliations/ORCID : Non fournis par l'API standard d'arXiv. Ces données seront 
+  récupérées via le croisement avec les sources HAL et OpenAlex (JSONL).
+
+Variables de contrôle :
 - AI_CATEGORIES : Liste des domaines arXiv à scanner (cs.AI, cs.LG, etc.).
 - MAX_RESULTS_PER_CATEGORY : Nombre total d'articles à récupérer par catégorie. 
   Passez à 10 pour un test rapide, ou 1000+ pour une ingestion massive.
