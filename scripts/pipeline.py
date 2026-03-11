@@ -29,7 +29,7 @@ from crawlers.arxiv_crawler import crawl_ai_articles
 from crawlers.semantic_scholar_crawler import crawl_semantic_scholar_ai
 from crawlers.hal_crawler import crawl_hal_ai
 from processors.openalex_processor import OpenAlexProcessor
-from processors.institution_processor import InstitutionProcessor
+from processors.open_alex_institution_processor import InstitutionProcessor
 from processors.affiliation_processor import AffiliationProcessor
 from processors.arxiv_processor import ArxivProcessor
 from processors.semantic_scholar_processor import SemanticScholarProcessor
