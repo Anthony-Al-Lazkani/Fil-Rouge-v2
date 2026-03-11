@@ -1,3 +1,21 @@
+"""
+Crawler pour l'extraction automatisée de publications depuis l'API arXiv.
+
+Ce script interroge les archives d'arXiv pour récupérer les derniers travaux en IA 
+(Computer Science / Machine Learning / Artificial Intelligence).
+
+Variables de contrôle (Pipeline Léger vs Massif) :
+- AI_CATEGORIES : Liste des domaines arXiv à scanner (cs.AI, cs.LG, etc.).
+- MAX_RESULTS_PER_CATEGORY : Nombre total d'articles à récupérer par catégorie. 
+  Passez à 10 pour un test rapide, ou 1000+ pour une ingestion massive.
+- FETCH_BATCH_SIZE : Nombre d'articles demandés par requête API (max 100 recommandé par arXiv).
+- FETCH_DELAY : Temps de pause (secondes) entre les requêtes pour respecter les quotas de l'API.
+
+Fonctionnement :
+Le script itère sur les catégories, effectue des requêtes paginées jusqu'à atteindre 
+le quota fixé, et renvoie une liste de dictionnaires formatés pour l'ArxivProcessor.
+"""
+
 import time
 import feedparser
 from typing import List, Dict, Any
@@ -13,8 +31,8 @@ AI_CATEGORIES = [
 BASE_ARXIV_URL = "https://export.arxiv.org/api/query"
 
 # Limits
-MAX_RESULTS_PER_CATEGORY = 10  # you can change this whenever
-FETCH_BATCH_SIZE = 100  # how many results to fetch per request
+MAX_RESULTS_PER_CATEGORY = 3  # you can change this whenever
+FETCH_BATCH_SIZE = 10  # how many results to fetch per request
 FETCH_DELAY = 0.5  # seconds between requests
 POST_DELAY = 0.05  # optional small delay per article
 
