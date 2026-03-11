@@ -1,5 +1,7 @@
 '''
 Outil d'audit et de profilage des données stockées.
+Facultatif. Il ne participe pas à l'insertion ou à la structure. 
+C'est un outil de lecture a posteriori. Cependant, il est votre meilleur allié pour vérifier si vos crawlers ont "bien fait leur travail" comme vous le souhaitez.
 
 Features:
 - Extraction et parsing des métriques JSON de la table ResearchItem.

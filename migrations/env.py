@@ -8,12 +8,10 @@ from alembic import context
 from sqlmodel import SQLModel
 
 # Import the models
-from models.research_item import ResearchItem
+from models.research_item_old import ResearchItem
 from models.source import Source
-from models.affiliation import Affiliation
-from models.author import Author
-from models.institution import Institution
-from models.organization import Organization
+from models.affiliation_old import Affiliation
+from models.author_old import Author
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

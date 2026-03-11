@@ -1,87 +1,72 @@
-from database import get_session
-from services.research_item_service import ResearchItemService
-from services.source_service import SourceService
-from services.author_service import AuthorService
-from schemas.research_item import ResearchItemCreate
-from schemas.source import SourceCreate
-from schemas.author import AuthorCreate
-from typing import List, Dict, Any
+"""
+Processeur épuré pour les données arXiv.
 
+Features:
+- Initialisation directe de la source.
+- Création/Récupération des auteurs (Upsert sur external_id).
+- Insertion de ResearchItem en utilisant uniquement les champs valides.
+- Tout le reste est stocké dans le champ 'raw'.
+"""
+
+from sqlmodel import Session, select
+from database import engine
+from models import ResearchItem, Author, Source
 
 class ArxivProcessor:
     def __init__(self):
-        self.session = next(get_session())
-        self.source_service = SourceService()
-        self.item_service = ResearchItemService()
-        self.author_service = AuthorService()
+        self.session = Session(engine)
+        # On récupère ou crée la source directement
+        source = self.session.exec(select(Source).where(Source.name == "arxiv")).first()
+        if not source:
+            source = Source(name="arxiv", type="academic", base_url="https://arxiv.org/")
+            self.session.add(source)
+            self.session.commit()
+            self.session.refresh(source)
+        self.source = source
 
-        # Create/get source for ArXiv
-        self.arxiv_source = self.source_service.create(
-            self.session,
-            SourceCreate(name="arxiv", type="academic", base_url="https://arxiv.org/"),
-        )
+    def get_or_create_author(self, author_name: str):
+        """Récupère l'auteur s'il existe déjà, sinon le crée."""
+        ext_id = f"arxiv_{author_name.replace(' ', '_').lower()}"
+        author = self.session.exec(select(Author).where(Author.external_id == ext_id)).first()
+        
+        if not author:
+            author = Author(full_name=author_name, external_id=ext_id)
+            self.session.add(author)
+            self.session.commit()
+            self.session.refresh(author)
+        return author
 
-    def exists(self, external_id: str) -> bool:
-        """Check if an article already exists in the DB"""
-        return (
-            self.item_service.get_by_external_id(
-                self.session, self.arxiv_source.id, external_id
-            )
-            is not None
-        )
-
-    def create_authors(self, article: Dict[str, Any]) -> List[int]:
-        """Create authors in database and return their IDs"""
-        author_ids = []
-        for author_name in article["authors"]:
-            author_create = AuthorCreate(
-                full_name=author_name,
-                external_id=f"arxiv_{author_name.replace(' ', '_')}",
-                roles=["co_author"]
-                if author_name != article["authors"][0]
-                else ["first_author"],
-            )
-            author = self.author_service.create(self.session, author_create)
-            author_ids.append(author.id)
-        return author_ids
-
-    def create_research_item(self, article: Dict[str, Any], author_ids: List[int]):
-        """Create research item in database"""
-        research_item = ResearchItemCreate(
-            source_id=self.arxiv_source.id,
-            external_id=article["id"],
-            type="article",
-            title=article["title"],
-            abstract=article.get("summary"),
-            year=int(article["published"][:4]),
-            is_retracted=False,
-            is_open_access=True,
-            metrics={
-                "author_ids": author_ids,
-                "authors": article["authors"],
-                "summary": article["summary"],
-                "category": article["category"],
-                "published": article["published"],
-            },
-            raw=article,
-        )
-        return self.item_service.create(self.session, research_item)
-
-    def process_articles(self, articles: List[Dict[str, Any]]) -> int:
-        """Process a list of articles and insert them into the database"""
+    def process_articles(self, articles: list) -> int:
+        """Traite et insère les articles arXiv."""
         processed_count = 0
 
-        for article in articles:
-            ext_id = article["id"]
+        for art in articles:
+            # Check si l'article existe déjà par son external_id
+            existing = self.session.exec(
+                select(ResearchItem).where(ResearchItem.external_id == art["id"])
+            ).first()
+            
+            if existing:
+                continue
 
-            if self.exists(ext_id):
-                continue  # skip duplicates
+            # On crée les auteurs (utile pour ton graphe plus tard)
+            for name in art.get("authors", []):
+                self.get_or_create_author(name)
 
-            # Create authors
-            author_ids = self.create_authors(article)
-
-            # Create research item
-            self.create_research_item(article, author_ids)
+            # Création du ResearchItem (Conforme au nouveau modèle épuré)
+            item = ResearchItem(
+                source_id=self.source.id,
+                external_id=art["id"],
+                title=art["title"],
+                abstract=art.get("summary"),
+                year=int(art["published"][:4]) if art.get("published") else None,
+                type="article",
+                is_open_access=True,
+                raw=art  # C'est ici qu'on met TOUT pour l'AffiliationProcessor
+            )
+            
+            self.session.add(item)
             processed_count += 1
 
+        self.session.commit()
         return processed_count

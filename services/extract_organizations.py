@@ -1,9 +1,8 @@
 import re
 import json
 from sqlmodel import Session, select
-from models.research_item import ResearchItem
-from models.organization import Organization
-from models.affiliation import Affiliation
+from models.research_item_old import ResearchItem
+from models.affiliation_old import Affiliation
 from schemas.organization import OrganizationCreate
 from database.initialize import engine
 

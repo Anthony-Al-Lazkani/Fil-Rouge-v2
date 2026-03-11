@@ -1,65 +1,67 @@
-from database import get_session
-from services.entity_service import EntityService
-from services.source_service import SourceService
-from schemas.entity import EntityCreate
-from schemas.source import SourceCreate
-from typing import List, Dict, Any
+"""
+Processeur épuré pour les organisations (Universités, Labos, Entreprises).
 
+Features:
+- Unifie le stockage dans la table Entity.
+- Gère la déduplication par external_id et ROR.
+- Fusionne les attributs académiques et économiques.
+"""
+
+from sqlmodel import Session, select
+from database import engine
+from models import Entity, Source
 
 class InstitutionProcessor:
     def __init__(self):
-        self.session = next(get_session())
-        self.entity_service = EntityService()
-        self.source_service = SourceService()
+        self.session = Session(engine)
+        # Gestion de la source OpenAlex
+        source = self.session.exec(select(Source).where(Source.name == "openalex")).first()
+        if not source:
+            source = Source(name="openalex", type="academic")
+            self.session.add(source)
+            self.session.commit()
+            self.session.refresh(source)
+        self.source_id = source.id
 
-        self.openalex_source = self.source_service.create(
-            self.session,
-            SourceCreate(
-                name="openalex",
-                type="academic",
-                base_url="https://openalex.org/",
-            ),
-        )
+    def process_institutions(self, institutions: list) -> int:
+        """Traite et insère les institutions en tant qu'entités unifiées."""
+        count = 0
+        for inst in institutions:
+            ext_id = inst.get("external_id")
+            ror = inst.get("ror")
 
-    def exists(self, external_id: str) -> bool:
-        """Check if an entity already exists in the DB"""
-        return (
-            self.entity_service.get_by_external_id(self.session, external_id)
-            is not None
-        )
+            # Check doublon par external_id ou ROR
+            existing = None
+            if ext_id:
+                existing = self.session.exec(select(Entity).where(Entity.external_id == ext_id)).first()
+            if not existing and ror:
+                existing = self.session.exec(select(Entity).where(Entity.ror == ror)).first()
 
-    def create_institution(self, inst_data: Dict[str, Any]):
-        """Create institution in database as Entity"""
-        entity = EntityCreate(
-            source_id=self.openalex_source.id,
-            external_id=inst_data.get("external_id"),
-            ror=inst_data.get("ror"),
-            name=inst_data.get("display_name", ""),
-            display_name=inst_data.get("display_name"),
-            display_name_acronyms=inst_data.get("display_name_acronyms", []),
-            display_name_alternatives=inst_data.get("display_name_alternatives", []),
-            entity_type="institution",
-            country_code=inst_data.get("country_code"),
-            type=inst_data.get("type"),
-            homepage_url=inst_data.get("homepage_url"),
-            works_count=inst_data.get("works_count", 0),
-            cited_by_count=inst_data.get("cited_by_count", 0),
-            associated_entities=inst_data.get("associated_institutions", []),
-            counts_by_year=inst_data.get("counts_by_year", []),
-        )
-        return self.entity_service.create(self.session, entity)
-
-    def process_institutions(self, institutions: List[Dict[str, Any]]) -> int:
-        """Process a list of institutions and insert them into the database"""
-        processed_count = 0
-
-        for inst_data in institutions:
-            external_id = inst_data.get("external_id")
-
-            if external_id and self.exists(external_id):
+            if existing:
                 continue
 
-            self.create_institution(inst_data)
-            processed_count += 1
+            # Création de l'entité épurée (Fusion Académique/Entreprise)
+            new_entity = Entity(
+                source_id=self.source_id,
+                external_id=ext_id,
+                ror=ror,
+                name=inst.get("display_name", "Unknown"),
+                display_name=inst.get("display_name"),
+                acronyms=inst.get("display_name_acronyms", []),
+                type=inst.get("type"), # ex: 'education', 'company'
+                country_code=inst.get("country_code"),
+                city=inst.get("geo", {}).get("city") if inst.get("geo") else None,
+                website=inst.get("homepage_url"),
+                works_count=inst.get("works_count", 0),
+                cited_by_count=inst.get("cited_by_count", 0),
+                raw=inst
+            )
+            
+            self.session.add(new_entity)
+            count += 1
+            
+            if count % 100 == 0:
+                self.session.commit()
 
-        return processed_count
+        self.session.commit()
+        return count

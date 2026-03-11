@@ -1,7 +1,24 @@
 #!/usr/bin/env python3
 """
-Pipeline script to crawl data from OpenAlex, arXiv, Semantic Scholar, and HAL and insert into database.
-This script connects crawlers with processors to complete the data flow.
+Orchestrateur principal du flux de données (Pipeline).
+
+Ce script coordonne l'exécution séquentielle des crawlers et des processeurs. 
+Il assure l'initialisation de la base de données, la récupération des données 
+brutes depuis les API et leur transformation en objets structurés (Upsert).
+
+Features:
+- Initialisation automatique du schéma de la BDD.
+- Gestion granulaire des sources (OpenAlex, arXiv, HAL, ScanR, etc.).
+- Orchestration du pipeline d'affiliation après l'import des articles.
+- Interface en ligne de commande (CLI) pour une exécution ciblée.
+
+Usage (CLI):
+- Lancer tout le pipeline : 
+    uv run python pipeline.py --source all
+- Lancer uniquement la source arXiv : 
+    uv run python pipeline.py --source arxiv
+- Lancer uniquement l'import des entreprises : 
+    uv run python pipeline.py --source open_corporates
 """
 
 import argparse
@@ -177,10 +194,6 @@ def main():
         total_processed += run_openalex_institution_pipeline()
         print()
 
-    if args.source in ["affiliations", "all"]:
-        total_processed += run_affiliation_pipeline()
-        print()
-
     if args.source in ["arxiv", "all"]:
         total_processed += run_arxiv_pipeline()
         print()
@@ -199,6 +212,10 @@ def main():
     
     if args.source in ["open_corporates", "all"]:
         total_processed += run_open_corporates_pipeline()
+        print()
+    
+    if args.source in ["affiliations", "all"]:
+        total_processed += run_affiliation_pipeline()
         print()
 
     print(f"=== Pipeline Complete ===")

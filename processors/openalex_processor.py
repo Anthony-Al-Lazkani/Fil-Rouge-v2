@@ -1,110 +1,99 @@
-from database import get_session
-from services.research_item_service import ResearchItemService
-from services.source_service import SourceService
-from services.author_service import AuthorService
-from schemas.research_item import ResearchItemCreate
-from schemas.source import SourceCreate
-from schemas.author import AuthorCreate
-from typing import List, Dict, Any
+"""
+Processeur d'ingestion pour les publications OpenAlex.
 
+Features:
+- Identification unique par DOI (pivot inter-sources) et external_id.
+- Création simplifiée des auteurs (déduplication par identifiant OpenAlex).
+- Stockage intégral des métadonnées dans le champ 'raw' pour l'extraction du graphe.
+- Insertion directe via SQLModel pour maximiser les performances.
+"""
+
+from sqlmodel import Session, select
+from database import engine
+from models import ResearchItem, Author, Source
 
 class OpenAlexProcessor:
     def __init__(self):
-        self.session = next(get_session())
-        self.source_service = SourceService()
-        self.item_service = ResearchItemService()
-        self.author_service = AuthorService()
+        self.session = Session(engine)
+        # Initialisation ou récupération de la source
+        source = self.session.exec(select(Source).where(Source.name == "openalex")).first()
+        if not source:
+            source = Source(name="openalex", type="academic", base_url="https://openalex.org/")
+            self.session.add(source)
+            self.session.commit()
+            self.session.refresh(source)
+        self.source_id = source.id
 
-        # Create or get OpenAlex source
-        self.openalex_source = self.source_service.create(
-            self.session,
-            SourceCreate(
-                name="openalex",
-                type="academic",
-                base_url="https://openalex.org/",
-            ),
-        )
-
-    def exists(self, external_id: str) -> bool:
-        """Check if an article already exists in the DB"""
-        return (
-            self.item_service.get_by_external_id(
-                self.session, self.openalex_source.id, external_id
+    def get_or_create_author(self, author_data: dict):
+        """Gère l'existence de l'auteur via son ID OpenAlex unique."""
+        ext_id = author_data.get("author_id")
+        if not ext_id: return None
+        
+        # Nettoyage de l'ID (garde la version courte)
+        ext_id = str(ext_id).replace("https://openalex.org/", "")
+        
+        author = self.session.exec(
+            select(Author).where(Author.external_id == ext_id)
+        ).first()
+        
+        if not author:
+            author = Author(
+                full_name=author_data.get("display_name") or author_data.get("raw_author_name", "Unknown"),
+                external_id=ext_id,
+                orcid=author_data.get("orcid")
             )
-            is not None
-        )
+            self.session.add(author)
+            self.session.commit()
+            self.session.refresh(author)
+        return author
 
-    def create_authors(self, work_data: Dict[str, Any]) -> List[int]:
-        """Create authors in database and return their IDs"""
-        author_ids = []
-
-        for author_data in work_data["authors"]:
-            author_create = AuthorCreate(
-                full_name=author_data.get("display_name")
-                or author_data.get("raw_author_name", ""),
-                external_id=str(author_data["author_id"])
-                if author_data.get("author_id")
-                else None,
-                orcid=author_data.get("orcid"),
-                roles=author_data.get("roles", []),
-                affiliations=author_data.get("affiliations", []),
-            )
-            author = self.author_service.create(self.session, author_create)
-            author_ids.append(author.id)
-
-        return author_ids
-
-    def create_research_item(self, work_data: Dict[str, Any], author_ids: List[int]):
-        """Create research item in database"""
-        research_item = ResearchItemCreate(
-            source_id=self.openalex_source.id,
-            external_id=work_data["external_id"],
-            type=work_data.get("type", "article"),
-            doi=work_data.get("doi"),
-            title=work_data.get("title"),
-            abstract=work_data.get("abstract"),
-            year=work_data.get("year"),
-            publication_date=work_data.get("publication_date"),
-            language=work_data.get("language"),
-            is_retracted=work_data.get("is_retracted", False),
-            is_open_access=work_data.get("is_open_access", False),
-            license=work_data.get("license"),
-            url=work_data.get("url"),
-            citation_count=work_data.get("citation_count", 0),
-            keywords=work_data.get("keywords", []),
-            topics=work_data.get("topics", []),
-            metrics={
-                "author_ids": author_ids,
-                "authors": work_data["authors"],
-                "open_access_location": work_data.get("open_access_location"),
-                "source_name": work_data.get("source_name"),
-                "source_issn": work_data.get("source_issn"),
-                "source_type": work_data.get("source_type"),
-                "version": work_data.get("version"),
-                "is_accepted": work_data.get("is_accepted"),
-                "is_published": work_data.get("is_published"),
-                "referenced_works": work_data.get("referenced_works", []),
-                "related_works": work_data.get("related_works", []),
-            },
-            raw=work_data.get("raw"),
-        )
-        return self.item_service.create(self.session, research_item)
-
-    def process_works(self, works: List[Dict[str, Any]]) -> int:
-        """Process a list of works and insert them into the database"""
+    def process_works(self, works: list) -> int:
+        """Traite et insère les publications OpenAlex en évitant les doublons."""
         processed_count = 0
 
-        for work_data in works:
-            external_id = work_data["external_id"]
+        for w in works:
+            ext_id = w.get("external_id")
+            doi = w.get("doi")
+            if not ext_id: continue
 
-            if self.exists(external_id):
-                continue  # skip duplicates
+            # 1. Vérification doublon par DOI (Toutes sources)
+            existing = None
+            if doi:
+                existing = self.session.exec(select(ResearchItem).where(ResearchItem.doi == doi)).first()
+            
+            # 2. Vérification par external_id si DOI absent ou non trouvé
+            if not existing:
+                existing = self.session.exec(select(ResearchItem).where(ResearchItem.external_id == ext_id)).first()
 
-            # Create authors
-            author_ids = self.create_authors(work_data)
+            if existing:
+                continue
 
-            # Create research item
-            self.create_research_item(work_data, author_ids)
+            # Création des auteurs
+            for auth_data in w.get("authors", []):
+                self.get_or_create_author(auth_data)
+
+            # Création du ResearchItem (Conforme au modèle épuré)
+            item = ResearchItem(
+                source_id=self.source_id,
+                external_id=ext_id,
+                doi=doi,
+                title=w.get("title"),
+                abstract=w.get("abstract"),
+                year=w.get("year"),
+                type=w.get("type", "article"),
+                is_open_access=w.get("is_open_access", False),
+                citation_count=w.get("citation_count", 0),
+                keywords=w.get("keywords", []),
+                topics=w.get("topics", []),
+                raw=w # On garde tout le dictionnaire original ici
+            )
+            
+            self.session.add(item)
             processed_count += 1
 
+            # Commit régulier pour la stabilité
+            if processed_count % 100 == 0:
+                self.session.commit()
+
+        self.session.commit()
         return processed_count

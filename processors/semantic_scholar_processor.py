@@ -1,124 +1,110 @@
-from database import get_session
-from services.research_item_service import ResearchItemService
-from services.source_service import SourceService
-from services.author_service import AuthorService
-from schemas.research_item import ResearchItemCreate
-from schemas.source import SourceCreate
-from schemas.author import AuthorCreate
-from typing import List, Dict, Any
+"""
+Processeur épuré pour Semantic Scholar.
 
+Features:
+- Identification de la source Semantic Scholar.
+- Création/Récupération des auteurs via l'identifiant S2.
+- Déduplication stricte par external_id et DOI.
+- Centralisation des données brutes dans le champ 'raw'.
+"""
+
+from sqlmodel import Session, select
+from database import engine
+from models import ResearchItem, Author, Source
 
 class SemanticScholarProcessor:
     def __init__(self):
-        self.session = next(get_session())
-        self.source_service = SourceService()
-        self.item_service = ResearchItemService()
-        self.author_service = AuthorService()
-
-        # Create or get Semantic Scholar source
-        self.semantic_scholar_source = self.source_service.create(
-            self.session,
-            SourceCreate(
-                name="semantic_scholar",
-                type="academic",
-                base_url="https://api.semanticscholar.org/",
-            ),
-        )
-
-    def exists(self, external_id: str) -> bool:
-        """Check if an article already exists in the DB"""
-        return (
-            self.item_service.get_by_external_id(
-                self.session, self.semantic_scholar_source.id, external_id
+        self.session = Session(engine)
+        # Initialisation ou récupération de la source
+        source = self.session.exec(
+            select(Source).where(Source.name == "semantic_scholar")
+        ).first()
+        if not source:
+            source = Source(
+                name="semantic_scholar", 
+                type="academic", 
+                base_url="https://api.semanticscholar.org/"
             )
-            is not None
-        )
+            self.session.add(source)
+            self.session.commit()
+            self.session.refresh(source)
+        self.source_id = source.id
 
-    def create_authors(self, record: Dict[str, Any]) -> List[int]:
-        """Create authors in database and return their IDs"""
-        author_ids = []
-
-        for idx, author in enumerate(record.get("authors", [])):
-            roles = ["first_author"] if idx == 0 else ["co_author"]
-
-            author_create = AuthorCreate(
-                full_name=author.get("name", ""),
-                external_id=str(author.get("id")),
-                # if author.get("authorId")
-                # else None,
-                orcid=author.get("orcid"),
-                roles=roles,
-                affiliations=author.get("affiliations", []),
+    def get_or_create_author(self, author_data: dict):
+        """Récupère ou crée l'auteur via son ID Semantic Scholar."""
+        ext_id = author_data.get("id")
+        if not ext_id: return None
+        
+        ext_id = f"s2_{ext_id}"
+        author = self.session.exec(
+            select(Author).where(Author.external_id == ext_id)
+        ).first()
+        
+        if not author:
+            author = Author(
+                full_name=author_data.get("name", "Unknown"),
+                external_id=ext_id
             )
-            db_author = self.author_service.create(self.session, author_create)
-            author_ids.append(db_author.id)
+            self.session.add(author)
+            self.session.commit()
+            self.session.refresh(author)
+        return author
 
-        return author_ids
-
-    def create_research_item(self, record: Dict[str, Any], author_ids: List[int]):
-        """Create research item in database"""
-        publication = record.get("publication", {})
-
-        # Prepare authors data for metrics
-        authors_for_db = [
-            {
-                "author_id": author.get("id"),
-                "display_name": author.get("name"),
-                "orcid": author.get("orcid"),
-                "affiliations": author.get("affiliations", []),
-                "roles": ["first_author"] if idx == 0 else ["co_author"],
-            }
-            for idx, author in enumerate(record.get("authors", []))
-        ]
-
-        research_item = ResearchItemCreate(
-            source_id=self.semantic_scholar_source.id,
-            external_id=publication.get("id"),
-            doi=publication.get("doi"),
-            title=publication.get("title"),
-            abstract=publication.get("abstract"),
-            year=publication.get("year"),
-            type=publication.get("type", "paper"),
-            language=publication.get("language"),
-            is_retracted=False,
-            is_open_access=publication.get("is_open_access"),
-            url=publication.get("url"),
-            citation_count=publication.get("citation_count", 0),
-            keywords=[],
-            topics=record.get("fields_of_study", []),
-            metrics={
-                "author_ids": author_ids,
-                "citation_count": publication.get("citation_count", 0),
-                "venue": publication.get("venue"),
-                "authors": authors_for_db,
-                "url": publication.get("url"),
-                "external_ids": publication.get("external_ids", {}),
-            },
-            raw=record,
-        )
-        return self.item_service.create(self.session, research_item)
-
-    def process_records(self, records: List[Dict[str, Any]]) -> int:
-        """Process a list of Semantic Scholar records and insert them into the database"""
+    def process_records(self, records: list) -> int:
+        """Traite et insère les publications Semantic Scholar."""
         processed_count = 0
 
         for record in records:
             publication = record.get("publication", {})
-            external_id = publication.get("id")
+            ext_id = publication.get("id")
+            doi = publication.get("doi")
 
-            if not external_id or self.exists(external_id):
-                continue  # skip duplicates
+            if not ext_id: continue
+
+            # 1. Check doublon par external_id
+            existing = self.session.exec(
+                select(ResearchItem).where(ResearchItem.external_id == ext_id)
+            ).first()
+            if existing: continue
+
+            # 2. Check doublon par DOI (inter-sources)
+            if doi:
+                existing_doi = self.session.exec(
+                    select(ResearchItem).where(ResearchItem.doi == doi)
+                ).first()
+                if existing_doi: continue
 
             try:
-                # Create authors
-                author_ids = self.create_authors(record)
+                # Création des auteurs
+                for auth_data in record.get("authors", []):
+                    self.get_or_create_author(auth_data)
 
-                # Create research item
-                self.create_research_item(record, author_ids)
+                # Création du ResearchItem épuré
+                item = ResearchItem(
+                    source_id=self.source_id,
+                    external_id=ext_id,
+                    doi=doi,
+                    title=publication.get("title"),
+                    abstract=publication.get("abstract"),
+                    year=publication.get("year"),
+                    type=publication.get("type", "paper"),
+                    language=publication.get("language"),
+                    is_open_access=publication.get("is_open_access", False),
+                    citation_count=publication.get("citation_count", 0),
+                    topics=record.get("fields_of_study", []),
+                    raw=record # Contient les auteurs et leurs affiliations brutes
+                )
+                
+                self.session.add(item)
                 processed_count += 1
+
+                if processed_count % 100 == 0:
+                    self.session.commit()
+
             except Exception as e:
                 self.session.rollback()
-                print(f"Error processing record {external_id}: {e}")
+                print(f"Error processing S2 record {ext_id}: {e}")
                 continue
 
+        self.session.commit()
         return processed_count
