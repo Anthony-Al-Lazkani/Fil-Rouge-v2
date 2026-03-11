@@ -13,11 +13,14 @@ PER_PAGE = 100
 
 
 # ------------------ MAIN CRAWLING FUNCTION ------------------
-def crawl_openalex_ai() -> List[Dict[str, Any]]:
+def crawl_openalex_ai(max_articles: int = 10) -> List[Dict[str, Any]]:
     all_works = []
 
     for year in range(START_YEAR, END_YEAR + 1):
         print(f"\n=== Crawling year {year} ===")
+
+        if len(all_works) >= max_articles:
+            break
 
         query = (
             Works()
@@ -28,7 +31,14 @@ def crawl_openalex_ai() -> List[Dict[str, Any]]:
         pager = query.paginate(per_page=PER_PAGE)
 
         for page in pager:
+
+            if len(all_works) >= max_articles:
+                break
+
             for work in page:
+                if len(all_works) >= max_articles:
+                    break
+                
                 external_id = work.get("id")
                 title = work.get("title")
                 doi = work.get("doi")

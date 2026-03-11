@@ -69,9 +69,29 @@ class HalProcessor:
                 raw_title = doc.get("title_s")
                 title = raw_title[0] if isinstance(raw_title, list) and raw_title else raw_title
 
-                # 3. Logique de mapping du type (À PLACER ICI)
+                # 3. Logique de mapping du type
                 hal_type = doc.get("docType_s", "ART")
                 normalized_type = "article" if hal_type in ["ART", "COUV", "COMM", "POSTER"] else "other"
+
+                # Extraction et nettoyage des domaines (topics)
+                raw_domains = doc.get("domain_s", [])
+                clean_topics = []
+
+                for d in raw_domains:
+                    # On enlève les préfixes de hiérarchie (0., 1., 2.)
+                    # "1.shs.droit" devient "shs.droit"
+                    parts = d.split('.')
+                    if len(parts) > 1:
+                        topic = ".".join(parts[1:])
+                    else:
+                        topic = d
+                    
+                    # Optionnel : Rendre plus lisible (ex: shs -> sciences-sociales)
+                    topic = topic.replace("shs", "sciences-sociales").replace("info", "informatique")
+                    
+                    if topic not in clean_topics:
+                        clean_topics.append(topic)
+
 
                 # 4. Création du ResearchItem homogénéisé
                 item = ResearchItem(
@@ -83,7 +103,7 @@ class HalProcessor:
                     type=normalized_type, # Utilisation du type mappé
                     is_open_access=True,
                     keywords=doc.get("keyword_s", []),
-                    topics=doc.get("domain_s", []),
+                    topics=clean_topics,
                     raw=doc
                 )
                 
