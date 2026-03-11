@@ -1,15 +1,16 @@
 from database import get_session
-from services.organization_service import OrganizationService
+from services.entity_service import EntityService
 from services.source_service import SourceService
-from schemas.organization import OrganizationCreate
+from schemas.entity import EntityCreate
 from schemas.source import SourceCreate
 from typing import List, Dict, Any
+
 
 class OpenCorporatesProcessor:
     def __init__(self):
         self.session = next(get_session())
         self.source_service = SourceService()
-        self.org_service = OrganizationService()
+        self.entity_service = EntityService()
 
         self.oc_source = self.source_service.create(
             self.session,
@@ -24,24 +25,27 @@ class OpenCorporatesProcessor:
         processed_count = 0
 
         for co_data in companies:
-            # On vérifie si elle existe déjà via external_id (SIREN)
-            existing = self.org_service.get_by_external_id(self.session, co_data["external_id"])
+            existing = self.entity_service.get_by_external_id(
+                self.session, co_data["external_id"]
+            )
             if existing:
                 continue
 
-            org_create = OrganizationCreate(
+            entity_create = EntityCreate(
                 source_id=self.oc_source.id,
                 external_id=co_data["external_id"],
                 name=co_data["name"],
+                entity_type="company",
                 type=co_data["type"],
-                country="France",
+                country=co_data["jurisdiction"],
+                country_code=co_data["jurisdiction"],
                 founded_date=co_data["founded_date"],
                 operating_status=co_data["operating_status"],
                 is_ai_related=True,
-                raw=co_data["raw"]
+                raw=co_data["raw"],
             )
-            
-            self.org_service.create(self.session, org_create)
+
+            self.entity_service.create(self.session, entity_create)
             processed_count += 1
 
         return processed_count

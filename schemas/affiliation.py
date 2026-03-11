@@ -24,18 +24,40 @@ class AffiliationBase(BaseModel):
     author_full_name: Optional[str] = Field(None, description="Author full name")
     author_orcid: Optional[str] = Field(None, description="Author ORCID")
 
-    # Institution
-    institution_external_id: Optional[str] = Field(
-        None, description="External ID of institution (OpenAlex, ROR)"
+    # Entity (unified: company, institution, research_lab, university, etc.)
+    entity_id: Optional[int] = Field(None, description="Entity ID (FK to Entity table)")
+    entity_name: Optional[str] = Field(None, description="Entity name")
+    entity_type: Optional[str] = Field(
+        None, description="Entity type: company, institution, etc."
     )
-    institution_name: Optional[str] = Field(None, description="Institution name")
-    institution_ror: Optional[str] = Field(None, description="ROR ID")
-    institution_country_code: Optional[str] = Field(None, description="Country code")
-    institution_type: Optional[str] = Field(None, description="Institution type")
+    entity_external_id: Optional[str] = Field(
+        None, description="External ID (OpenAlex, ROR, SIREN, etc.)"
+    )
+    entity_ror: Optional[str] = Field(None, description="ROR ID")
+    entity_country_code: Optional[str] = Field(None, description="Country code")
 
-    # Organization (alternative)
-    organization_id: Optional[int] = Field(None, description="Organization ID")
-    organization_name: Optional[str] = Field(None, description="Organization name")
+    # Legacy fields (deprecated - use entity_* fields instead)
+    institution_external_id: Optional[str] = Field(
+        None, description="[DEPRECATED] Use entity_external_id"
+    )
+    institution_name: Optional[str] = Field(
+        None, description="[DEPRECATED] Use entity_name"
+    )
+    institution_ror: Optional[str] = Field(
+        None, description="[DEPRECATED] Use entity_ror"
+    )
+    institution_country_code: Optional[str] = Field(
+        None, description="[DEPRECATED] Use entity_country_code"
+    )
+    institution_type: Optional[str] = Field(
+        None, description="[DEPRECATED] Use entity_type"
+    )
+    organization_id: Optional[int] = Field(
+        None, description="[DEPRECATED] Use entity_id"
+    )
+    organization_name: Optional[str] = Field(
+        None, description="[DEPRECATED] Use entity_name"
+    )
 
     # Role
     role: Optional[str] = Field(None, description="Author role in publication")
@@ -58,6 +80,12 @@ class AffiliationUpdate(BaseModel):
     author_external_id: Optional[str] = None
     author_full_name: Optional[str] = None
     author_orcid: Optional[str] = None
+    entity_id: Optional[int] = None
+    entity_name: Optional[str] = None
+    entity_type: Optional[str] = None
+    entity_external_id: Optional[str] = None
+    entity_ror: Optional[str] = None
+    entity_country_code: Optional[str] = None
     institution_external_id: Optional[str] = None
     institution_name: Optional[str] = None
     institution_ror: Optional[str] = None

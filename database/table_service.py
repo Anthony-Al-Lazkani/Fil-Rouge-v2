@@ -4,15 +4,17 @@ from models.source import Source
 from models.research_item import ResearchItem
 from models.author import Author
 from models.affiliation import Affiliation
-from models.organization import Organization
-from models.institution import Institution
+from models.entity import Entity
+from models.organization import Organization  # Deprecated
+from models.institution import Institution  # Deprecated
 
 
 TABLES = {
     "affiliation": Affiliation,
     "author": Author,
-    "institution": Institution,
-    "organization": Organization,
+    "entity": Entity,
+    "institution": Institution,  # Deprecated: use entity instead
+    "organization": Organization,  # Deprecated: use entity instead
     "research_item": ResearchItem,
     "source": Source,
 }
