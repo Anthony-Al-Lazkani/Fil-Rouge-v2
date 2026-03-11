@@ -1,11 +1,9 @@
-"""
-Processeur pour les brevets INPI / EPO.
-Traite les brevets comme des ResearchItem de type 'patent'.
-"""
+import re
 from sqlmodel import Session, select
 from models import ResearchItem, Author, Source
 
 class InpiProcessor:
+
     def __init__(self, session: Session):
         self.session = session
         source = self.session.exec(select(Source).where(Source.name == "epo_ops")).first()
@@ -16,11 +14,48 @@ class InpiProcessor:
             self.session.refresh(source)
         self.source_id = source.id
 
-    def get_or_create_author(self, name: str, patent_id: str, idx: int):
-        ext_id = f"epo_{patent_id}_{idx}"
-        author = self.session.exec(select(Author).where(Author.external_id == ext_id)).first()
+
+    # Liste des marqueurs d'organisations
+    ORG_MARKERS = [
+        "CORP", "CORPORATION", "UNIV", "UNIVERSITY", "TECHNOLOGY", "INSTITUTE", 
+        "LTD", "INC", "LLC", "GMBH", "SAS", "SARL", "CO", "SYSTEMS", "LABS", "CITY"
+    ]
+
+    def clean_name(self, name: str) -> str:
+        name = re.sub(r'\[.*?\]', '', name)
+        name = name.replace('-', ' ').replace(',', ' ').replace('.', ' ')
+        name = name.upper()
+        return " ".join(name.split()).strip()
+
+    def is_probably_human(self, name: str) -> bool:
+        """Détermine si le nom est un humain ou une organisation."""
+        parts = name.split()
+        
+        # 1. Si un seul mot (souvent une marque ou une erreur)
+        if len(parts) < 2: return False
+        
+        # 2. Si contient un mot-clé d'entreprise
+        if any(marker in name for marker in self.ORG_MARKERS):
+            return False
+            
+        # 3. Si le nom est anormalement long (ex: Taipei City University...)
+        if len(name) > 40:
+            return False
+            
+        return True
+
+    def get_or_create_author(self, raw_name: str):
+        display_name = self.clean_name(raw_name)
+        
+        # SI CE N'EST PAS UN HUMAIN, ON SORT
+        if not self.is_probably_human(display_name):
+            return None 
+            
+        author_slug = f"person_{display_name.lower().replace(' ', '_')}"
+        author = self.session.exec(select(Author).where(Author.external_id == author_slug)).first()
+        
         if not author:
-            author = Author(full_name=name, external_id=ext_id)
+            author = Author(full_name=display_name, external_id=author_slug)
             self.session.add(author)
         return author
 
@@ -29,14 +64,13 @@ class InpiProcessor:
         for p in patents:
             ext_id = p["external_id"]
             
-            # Déduplication
             existing = self.session.exec(select(ResearchItem).where(ResearchItem.external_id == ext_id)).first()
             if existing: continue
 
             try:
-                # Création des auteurs (inventeurs et déposants)
-                for idx, name in enumerate(p["authors"]):
-                    self.get_or_create_author(name, ext_id, idx)
+                # Création/Récupération des auteurs
+                for name in p["authors"]:
+                    self.get_or_create_author(name)
 
                 # Création du brevet
                 item = ResearchItem(
@@ -45,8 +79,8 @@ class InpiProcessor:
                     title=p["title"],
                     abstract=p["abstract"],
                     year=p["year"],
-                    type="patent", # Voilà ton type spécifique
-                    is_open_access=True, # Un brevet est public par définition
+                    type="patent",
+                    is_open_access=True,
                     raw=p
                 )
                 self.session.add(item)
