@@ -1,4 +1,12 @@
 '''
+Outil d'audit et de profilage des données stockées.
+
+Features:
+- Extraction et parsing des métriques JSON de la table ResearchItem.
+- Calcul de statistiques de fréquence sur les organisations, types et pays.
+- Algorithme de détection et filtrage des entreprises par mots-clés (SAS, GROUP, etc.).
+- Génération d'un rapport de synthèse textuel sur le contenu de la base.
+
 Fonctionnement:
 uv run python -m database.Database_analyse
 

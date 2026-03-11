@@ -1,3 +1,18 @@
+"""
+Service de maintenance et de manipulation des tables.
+Utilitaire. Très utile en phase de développement pour "nettoyer" la base avant de relancer un crawler, mais non requis pour le fonctionnement de la base en production.
+Outil de nettoyage et d'administration. Son rôle principal est de vider les tables de votre base de données sans supprimer le fichier .db lui-même
+
+utilisation: 
+python -m database.table_service author (permet de purger les données de la table author)
+
+Features:
+- Centralisation du mapping des modèles SQLModel (TABLES).
+- Suppression sécurisée des données par table individuelle ou par liste.
+- Interface en ligne de commande (CLI) pour vider les tables spécifiées.
+- Gestion des modèles dépréciés (Organization, Institution).
+"""
+
 from sqlmodel import Session, select, SQLModel
 from database.initialize import engine
 from models.source import Source

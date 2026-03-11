@@ -1,4 +1,12 @@
 """
+Initialisation et configuration de la base de données SQLite.
+Indispensable. C'est le fondement technique. Sans lui, la base de données n'existe pas physiquement et les tables ne sont pas créées.
+
+Features:
+- Définition de l'URL de connexion et de l'engine SQLModel.
+- Création physique du fichier database.db et des tables à partir des modèles.
+- Point d'entrée pour la mise à jour de la structure (schéma) de la BDD.
+
 A relancer à chaque modif de la structure de la BDD
 uv run python -m database.initialize
 """
