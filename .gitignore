@@ -13,4 +13,4 @@ database.db
 .DS_Store
 
 # CSV files
-*.csv
+#*.csv
