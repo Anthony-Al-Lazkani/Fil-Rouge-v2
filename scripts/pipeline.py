@@ -19,6 +19,8 @@ from crawlers.semantic_scholar_crawler import SemanticScholarCrawler
 from crawlers.hal_crawler import HALCrawler
 from crawlers.scanR_crawler import crawl_scanr_ai
 from crawlers.open_corporates_crawler import crawl_opencorporates_ai
+from crawlers.inpi_crawler import InpiCrawler
+from processors.inpi_processor import InpiProcessor 
 
 # Processors
 from processors.openalex_processor import OpenAlexProcessor
@@ -81,7 +83,7 @@ def main():
     
         # 2. OpenAlex Institutions
         if s in ["openalex_inst", "all"]:
-            print("=== Running OpenAlex Inst Pipeline ===")
+            print("=== Running OpenAlex Institutions Pipeline ===")
             data = crawl_openalex_institutions()
             total_processed += run_source("openalex_inst", session, data, OpenAlexInstitutionProcessor, "process_institutions")
 
@@ -94,12 +96,14 @@ def main():
         # 4. Semantic Scholar (CLASSE avec arguments)
         if s in ["semantic_scholar", "all"]:
             print("=== Running Semantic Scholar Pipeline ===")
-            try:
-                crawler = SemanticScholarCrawler()
-                data = crawler.fetch_ai_papers(query="intelligence artificielle", year=2024, max_results=10)
-                total_processed += run_source("semantic_scholar", session, data, SemanticScholarProcessor, "process_papers")
-            except Exception as e:
-                print(f"[ERROR] Semantic Scholar failed: {e}")
+            key = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
+            crawler = SemanticScholarCrawler(api_key=key)
+            data = crawler.fetch_ai_papers(query="artificial intelligence", year=2026, max_results=10)
+            if data:
+                proc = SemanticScholarProcessor(session)
+                count = proc.process_papers(data)
+                total_processed += count
+                print(f"Processed {count} items\n")
 
         # 5. HAL (CLASSE avec arguments)
         if s in ["hal", "all"]:
@@ -117,12 +121,26 @@ def main():
             data = crawl_scanr_ai()
             total_processed += run_source("scanr", session, data, ScanRProcessor, "process_organizations")
 
-        # 7. OpenCorporates
+        # 7. INPI / EPO (Le grand oublié !) ---
+        if s in ["inpi", "all"]:
+            print("=== Running INPI / EPO Pipeline ===")
+            client_id = os.getenv("EPO_CLIENT_ID")
+            client_secret = os.getenv("EPO_CLIENT_SECRET")
+            crawler = InpiCrawler(client_id, client_secret)
+            data = crawler.fetch_ai_patents(max_results=10)
+            if data:
+                proc = InpiProcessor(session)
+                count = proc.process_patents(data)
+                total_processed += count
+                print(f"Processed {count} items\n")
+
+        '''    
+        # 8. OpenCorporates
         if s in ["open_corporates", "all"]:
             print("=== Running Open Corporates Pipeline ===")
             data = crawl_opencorporates_ai()
             total_processed += run_source("open_corporates", session, data, OpenCorporatesProcessor, "process_companies")
-
+'''
         
 
     print(f"=== Pipeline Complete ===\nTotal items processed: {total_processed}")
