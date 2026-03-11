@@ -9,6 +9,7 @@ from crawlers.hal_crawler import HALCrawler
 from processors.hal_processor import HalProcessor
 
 def run_test():
+    
     # 1. Collecte des données (Mode léger : 10 articles)
     print("=== ÉTAPE 1 : CRAWL HAL (MODE LÉGER) ===")
     crawler = HALCrawler(rows=10)
