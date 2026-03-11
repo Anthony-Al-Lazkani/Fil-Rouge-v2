@@ -1,226 +1,131 @@
 #!/usr/bin/env python3
-"""
-Orchestrateur principal du flux de données (Pipeline).
-
-Ce script coordonne l'exécution séquentielle des crawlers et des processeurs. 
-Il assure l'initialisation de la base de données, la récupération des données 
-brutes depuis les API et leur transformation en objets structurés (Upsert).
-
-Features:
-- Initialisation automatique du schéma de la BDD.
-- Gestion granulaire des sources (OpenAlex, arXiv, HAL, ScanR, etc.).
-- Orchestration du pipeline d'affiliation après l'import des articles.
-- Interface en ligne de commande (CLI) pour une exécution ciblée.
-
-Usage (CLI):
-- Lancer tout le pipeline : 
-    uv run python pipeline.py --source all
-- Lancer uniquement la source arXiv : 
-    uv run python pipeline.py --source arxiv
-- Lancer uniquement l'import des entreprises : 
-    uv run python pipeline.py --source open_corporates
-"""
-
 import argparse
+import sys
+import os
+from sqlmodel import Session
+
+from pathlib import Path
+# Gestion des chemins
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from database.initialize import create_db_and_tables
+from database import engine
+
+# Crawlers
 from crawlers.open_alex_crawler import crawl_openalex_ai
 from crawlers.open_alex_institution_crawler import crawl_openalex_institutions
 from crawlers.arxiv_crawler import crawl_ai_articles
-from crawlers.semantic_scholar_crawler import crawl_semantic_scholar_ai
-from crawlers.hal_crawler import crawl_hal_ai
+from crawlers.semantic_scholar_crawler import SemanticScholarCrawler
+from crawlers.hal_crawler import HALCrawler
+from crawlers.scanR_crawler import crawl_scanr_ai
+from crawlers.open_corporates_crawler import crawl_opencorporates_ai
+
+# Processors
 from processors.openalex_processor import OpenAlexProcessor
-from processors.open_alex_institution_processor import InstitutionProcessor
-from processors.affiliation_processor import AffiliationProcessor
+from processors.open_alex_institution_processor import OpenAlexInstitutionProcessor
 from processors.arxiv_processor import ArxivProcessor
 from processors.semantic_scholar_processor import SemanticScholarProcessor
 from processors.hal_processor import HalProcessor
-from crawlers.scanR_crawler import crawl_scanr_ai
 from processors.scanR_processor import ScanRProcessor
-from crawlers.open_corporates_crawler import crawl_opencorporates_ai
 from processors.open_corporates_processor import OpenCorporatesProcessor
+from processors.organization_processor import OrganizationProcessor
 
-
-def run_openalex_pipeline():
-    """Run OpenAlex crawling and processing pipeline"""
-    print("=== Running OpenAlex Pipeline ===")
-
-    # 1. Crawl the data
-    print("Crawling OpenAlex data...")
-    works = crawl_openalex_ai()
-    print(f"Crawled {len(works)} works from OpenAlex")
-
-    # 2. Process and insert into database
-    print("Processing and inserting into database...")
-    processor = OpenAlexProcessor()
-    processed_count = processor.process_works(works)
-    print(f"Successfully processed {processed_count} OpenAlex works")
-
-    return processed_count
-
-
-def run_openalex_institution_pipeline():
-    """Run OpenAlex institution crawling and processing pipeline"""
-    print("=== Running OpenAlex Institution Pipeline ===")
-
-    # 1. Crawl the data
-    print("Crawling OpenAlex institutions...")
-    institutions = crawl_openalex_institutions()
-    print(f"Crawled {len(institutions)} institutions from OpenAlex")
-
-    # 2. Process and insert into database
-    print("Processing and inserting into database...")
-    processor = InstitutionProcessor()
-    processed_count = processor.process_institutions(institutions)
-    print(f"Successfully processed {processed_count} OpenAlex institutions")
-
-    return processed_count
-
-
-def run_arxiv_pipeline():
-    """Run arXiv crawling and processing pipeline"""
-    print("=== Running arXiv Pipeline ===")
-
-    # 1. Crawl the data
-    print("Crawling arXiv data...")
-    articles = crawl_ai_articles()
-    print(f"Crawled {len(articles)} articles from arXiv")
-
-    print("Processing and inserting into database...")
-    processor = ArxivProcessor()
-    processed_count = processor.process_articles(articles)
-    print(f"Successfully processed {processed_count} arXiv articles")
-
-    return processed_count
-
-
-def run_semantic_scholar_pipeline():
-    """Run Semantic Scholar crawling and processing pipeline"""
-    print("=== Running Semantic Scholar Pipeline ===")
-
-    # 1. Crawl the data
-    print("Crawling Semantic Scholar data...")
-    records = crawl_semantic_scholar_ai()
-    print(f"Crawled {len(records)} records from Semantic Scholar")
-
-    # 2. Process and insert into database
-    print("Processing and inserting into database...")
-    processor = SemanticScholarProcessor()
-    processed_count = processor.process_records(records)
-    print(f"Successfully processed {processed_count} Semantic Scholar records")
-
-    return processed_count
-
-
-def run_hal_pipeline():
-    """Run HAL crawling and processing pipeline"""
-    print("=== Running HAL Pipeline ===")
-
-    # 1. Crawl the data
-    print("Loading HAL data...")
-    records = crawl_hal_ai()
-    print(f"Loaded {len(records)} records from HAL")
-
-    # 2. Process and insert into database
-    print("Processing and inserting into database...")
-    processor = HalProcessor()
-    processed_count = processor.process_records(records)
-    print(f"Successfully processed {processed_count} HAL records")
-
-    return processed_count
-
-def run_scanr_pipeline():
-    print("=== Running ScanR Pipeline ===")
-    orgs = crawl_scanr_ai()
-    processor = ScanRProcessor()
-    count = processor.process_organizations(orgs)
-    print(f"Successfully processed {count} ScanR organizations")
+def run_source(name, session, data, processor_class, process_method):
+    """Gère l'ingestion une fois que les données sont récupérées."""
+    if not data:
+        print(f"No data retrieved for {name}.\n")
+        return 0
+    
+    print(f"Crawled {len(data)} items from {name}")
+    processor = processor_class(session)
+    count = getattr(processor, process_method)(data)
+    print(f"Successfully processed {count} {name} items\n")
     return count
-
-
-def run_open_corporates_pipeline():
-    print("=== Running Open Corporates Pipeline ===")
-    
-    # 1. On récupère les données (limité à 10 pour le POC dans le crawler)
-    companies = crawl_opencorporates_ai()
-    
-    # 2. On initialise le processor spécifique
-    processor = OpenCorporatesProcessor()
-    
-    # 3. On insère en base
-    count = processor.process_companies(companies)
-    
-    print(f"Successfully processed {count} OpenCorporates organizations")
-    return count
-
-
-
-
-def run_affiliation_pipeline():
-    """Run affiliation processing pipeline"""
-    print("=== Running Affiliation Pipeline ===")
-
-    print("Processing affiliations from research items...")
-    processor = AffiliationProcessor()
-    processed_count = processor.process_all_research_items()
-    print(f"Successfully processed {processed_count} affiliations")
-
-    return processed_count
-
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run data crawling and processing pipelines"
-    )
-    parser.add_argument(
-        "--source",
-        choices=["openalex", "arxiv", "semantic_scholar", "hal", "scanr", "open_corporates", "all"],
-        default="all",
-        help="Which source to process (default: all)",
-    )
-
+    parser = argparse.ArgumentParser(description="Run data crawling and processing pipelines")
+    parser.add_argument("--source", default="all", help="Source à traiter")
     args = parser.parse_args()
 
-    # Initialize database
     print("Initializing database...")
     create_db_and_tables()
 
     total_processed = 0
+    s = args.source
 
-    if args.source in ["openalex", "all"]:
-        total_processed += run_openalex_pipeline()
-        print()
+    with Session(engine) as session:
+        # 0. Bases Locales (Crunchbase, AI Companies, etc.)
+        if s in ["local", "all"]:
+            print("=== Running Local Databases Pipeline ===")
+            data_dir = Path("data") # Dossier où sont tes CSV
+            if data_dir.exists():
+                local_processor = local_processor = OrganizationProcessor(session, data_dir)
+                
+                # On lance les différentes méthodes du processeur
+                count = 0
+                count += local_processor.process_crunchbase_csv()
+                count += local_processor.process_ai_companies()
+                count += local_processor.process_startup_dataset()
+                count += local_processor.process_startups_2021()
+                
+                print(f"Successfully processed {count} local items\n")
+                total_processed += count
+            else:
+                print("Dossier /data non trouvé. Skip local ingestion.\n")
 
-    if args.source in ["openalex_institutions", "all"]:
-        total_processed += run_openalex_institution_pipeline()
-        print()
-
-    if args.source in ["arxiv", "all"]:
-        total_processed += run_arxiv_pipeline()
-        print()
-
-    if args.source in ["semantic_scholar", "all"]:
-        total_processed += run_semantic_scholar_pipeline()
-        print()
-
-    if args.source in ["hal", "all"]:
-        total_processed += run_hal_pipeline()
-        print()
+        # 1. OpenAlex
+        if s in ["openalex", "all"]:
+            print("=== Running OpenAlex Pipeline ===")
+            data = crawl_openalex_ai()
+            total_processed += run_source("openalex", session, data, OpenAlexProcessor, "process_works")
     
-    if args.source in ["scanr", "all"]:
-        total_processed += run_scanr_pipeline()
-        print()
-    
-    if args.source in ["open_corporates", "all"]:
-        total_processed += run_open_corporates_pipeline()
-        print()
-    
-    if args.source in ["affiliations", "all"]:
-        total_processed += run_affiliation_pipeline()
-        print()
+        # 2. OpenAlex Institutions
+        if s in ["openalex_inst", "all"]:
+            print("=== Running OpenAlex Inst Pipeline ===")
+            data = crawl_openalex_institutions()
+            total_processed += run_source("openalex_inst", session, data, OpenAlexInstitutionProcessor, "process_institutions")
 
-    print(f"=== Pipeline Complete ===")
-    print(f"Total items processed: {total_processed}")
+        # 3. ArXiv
+        if s in ["arxiv", "all"]:
+            print("=== Running ArXiv Pipeline ===")
+            data = crawl_ai_articles()
+            total_processed += run_source("arxiv", session, data, ArxivProcessor, "process_articles")
 
+        # 4. Semantic Scholar (CLASSE avec arguments)
+        if s in ["semantic_scholar", "all"]:
+            print("=== Running Semantic Scholar Pipeline ===")
+            try:
+                crawler = SemanticScholarCrawler()
+                data = crawler.fetch_ai_papers(query="intelligence artificielle", year=2024, max_results=10)
+                total_processed += run_source("semantic_scholar", session, data, SemanticScholarProcessor, "process_papers")
+            except Exception as e:
+                print(f"[ERROR] Semantic Scholar failed: {e}")
+
+        # 5. HAL (CLASSE avec arguments)
+        if s in ["hal", "all"]:
+            print("=== Running HAL Pipeline ===")
+            try:
+                crawler = HALCrawler()
+                data = crawler.fetch_ai_publications(query="intelligence artificielle", start_year=2024, max_results=10)
+                total_processed += run_source("hal", session, data, HalProcessor, "process_records")
+            except Exception as e:
+                print(f"[ERROR] HAL failed: {e}")
+
+        # 6. ScanR
+        if s in ["scanr", "all"]:
+            print("=== Running ScanR Pipeline ===")
+            data = crawl_scanr_ai()
+            total_processed += run_source("scanr", session, data, ScanRProcessor, "process_organizations")
+
+        # 7. OpenCorporates
+        if s in ["open_corporates", "all"]:
+            print("=== Running Open Corporates Pipeline ===")
+            data = crawl_opencorporates_ai()
+            total_processed += run_source("open_corporates", session, data, OpenCorporatesProcessor, "process_companies")
+
+        
+
+    print(f"=== Pipeline Complete ===\nTotal items processed: {total_processed}")
 
 if __name__ == "__main__":
     main()

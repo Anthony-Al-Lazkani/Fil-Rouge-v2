@@ -5,6 +5,7 @@ Harmonisé avec OrganizationProcessor.
 
 from sqlmodel import Session, select
 from models import ResearchItem, Author, Source
+from datetime import datetime
 
 class ArxivProcessor:
     def __init__(self, session: Session):
@@ -36,25 +37,37 @@ class ArxivProcessor:
         """Traite et insère les articles arXiv."""
         count = 0
         for art in articles:
-            # Évite les doublons
+            # 1. Extraction et conversion de la date (Indispensable pour SQLite)
+            # On cherche dans "published" (nom standard chez arXiv) ou "publication_date"
+            raw_pub_date = art.get("published") or art.get("publication_date")
+            clean_date = None
+
+            if raw_pub_date:
+                try:
+                    # On prend les 10 premiers caractères "YYYY-MM-DD"
+                    clean_date = datetime.strptime(raw_pub_date[:10], "%Y-%m-%d").date()
+                except (ValueError, TypeError):
+                    clean_date = None
+
+            # 2. Évite les doublons
             existing = self.session.exec(
                 select(ResearchItem).where(ResearchItem.external_id == art["id"])
             ).first()
-            if existing: continue
+            if existing: 
+                continue
 
-            # Création des auteurs associés
+            # 3. Création des auteurs associés
             for name in art.get("authors", []):
                 self.get_or_create_author(name)
 
-            # Mapping vers ton modèle ResearchItem
+            # 4. Mapping vers ResearchItem
             item = ResearchItem(
                 source_id=self.source_id,
                 external_id=art["id"],
                 title=art["title"],
-                abstract=art.get("summary"),
-                year=int(art["published"][:4]) if art.get("published") else None,
-                # AJOUT : On stocke la date complète si le champ existe dans ton modèle
-                publication_date=art["published"][:10] if art.get("published") else None, 
+                abstract=art.get("summary") or art.get("abstract"),
+                year=clean_date.year if clean_date else None,
+                publication_date=clean_date, # OBJET DATE ICI (pas de string !)
                 type="article",
                 is_open_access=True,
                 raw=art 
