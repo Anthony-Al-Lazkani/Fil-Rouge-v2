@@ -1,5 +1,5 @@
 """
-Processeur d'ingestion des organisations (Universités, Labos, Startups).
+Processeur d'ingestion des documents locaux (csv récupérés depuis Crunchbase et Kaggle)
 
 Ce module centralise l'ingestion de données hétérogènes provenant de sources CSV locales (Crunchbase / Kaggle)
 Il assure la normalisation financière, l'extraction géographique par scan de contenu 

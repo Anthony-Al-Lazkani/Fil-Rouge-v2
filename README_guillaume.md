@@ -76,3 +76,8 @@ uv run ontologie/interroger_onto.py
 21-01-2026:
     Finir d'obtenir ses accès pour INPI pour pouvoir terminer le scrapper
     HAL ne contient pas de champs "country". En tout cas, aucun des 2000 articles récupérés ne l'avait renseigné.
+
+
+USAGE:
+    Penser à autoriser l'application sur le portail développeur EPO (validité 20 min) (l'appli s'appelle : fil-rouge-v2-inpi-ai)
+    https://developers.epo.org/user/31706/app-detail/ed3afe02-dce8-47ef-a214-fd5a96a82652
