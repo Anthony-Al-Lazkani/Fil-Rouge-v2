@@ -16,7 +16,7 @@ sys.path.insert(0, str(project_root))
 
 from database.initialize import create_db_and_tables
 from processors.organization_processor import OrganizationProcessor
-from services.organization_service import OrganizationService
+from services.entity_service import EntityService
 from sqlmodel import Session, create_engine
 from database.initialize import engine
 
@@ -24,32 +24,30 @@ from database.initialize import engine
 def import_all():
     """Import all CSV startup data."""
     processor = OrganizationProcessor(project_root / "data")
-    service = OrganizationService()
+    service = EntityService()
 
-    all_orgs = []
+    all_entities = []
 
-    # Process each CSV source
     for method in [
         processor.process_startup_dataset,
         processor.process_global_startup_success,
         processor.process_startups_2021,
         processor.process_ai_companies,
     ]:
-        orgs = method()
-        all_orgs.extend(orgs)
+        entities = method()
+        all_entities.extend(entities)
 
     with Session(engine) as session:
-        count = service.create_many(session, all_orgs)
+        count = service.create_many(session, all_entities)
 
-        # Show founders
-        companies = service.get_companies_with_founders(session)
+        companies = service.get_entities_with_founders(session)
         founders_set = set()
-        for org in companies:
-            if org.founders:
-                for f in org.founders:
-                    founders_set.add((f, org.name))
+        for entity in companies:
+            if entity.founders:
+                for f in entity.founders:
+                    founders_set.add((f, entity.name))
 
-        print(f"Created/updated {count} organizations")
+        print(f"Created/updated {count} entities")
         print(f"Found {len(companies)} companies with founders")
         print(f"Total unique founders: {len(founders_set)}")
 
@@ -62,7 +60,7 @@ def import_all():
 def import_single(source: str):
     """Import a single CSV source."""
     processor = OrganizationProcessor(project_root / "data")
-    service = OrganizationService()
+    service = EntityService()
 
     method_map = {
         "startup-dataset": processor.process_startup_dataset,
@@ -72,11 +70,11 @@ def import_single(source: str):
     }
 
     print(f"\nProcessing {source}...")
-    orgs = method_map[source]()
+    entities = method_map[source]()
 
     with Session(engine) as session:
-        count = service.create_many(session, orgs)
-        print(f"Created/updated {count} organizations")
+        count = service.create_many(session, entities)
+        print(f"Created/updated {count} entities")
 
 
 def main():

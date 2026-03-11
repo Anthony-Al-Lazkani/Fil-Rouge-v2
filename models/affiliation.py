@@ -29,21 +29,16 @@ class Affiliation(SQLModel, table=True):
     author_orcid: Optional[str] = None
 
     # =====================
-    # INSTITUTION INFO (primary affiliation)
+    # ENTITY INFO (unified: company, institution, research_lab, etc.)
     # =====================
-    institution_external_id: Optional[str] = Field(index=True)  # OpenAlex ID, ROR
-    institution_name: Optional[str] = None
-    institution_ror: Optional[str] = Field(index=True)
-    institution_country_code: Optional[str] = None
-    institution_type: Optional[str] = None  # education, company, etc.
-
-    # =====================
-    # ORGANIZATION INFO (alternative)
-    # =====================
-    organization_id: Optional[int] = Field(
-        foreign_key="organization.id", nullable=True, index=True
+    entity_id: Optional[int] = Field(foreign_key="entity.id", nullable=True, index=True)
+    entity_name: Optional[str] = None
+    entity_type: Optional[str] = (
+        None  # company, institution, research_lab, university, etc.
     )
-    organization_name: Optional[str] = None
+    entity_external_id: Optional[str] = Field(index=True)
+    entity_ror: Optional[str] = Field(index=True)
+    entity_country_code: Optional[str] = None
 
     # =====================
     # ADDITIONAL AFFILIATION INFO

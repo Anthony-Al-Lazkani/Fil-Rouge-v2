@@ -24,7 +24,7 @@ from sqlmodel import Session, create_engine, select
 
 from database.initialize import SQLITEURL, connect_args
 from models.author import Author
-from models.organization import Organization
+from models.entity import Entity
 import json
 
 
@@ -183,28 +183,26 @@ def match_authors_to_founders(
         authors = session.exec(select(Author)).all()
         print(f"Loaded {len(authors)} authors")
 
-        # Get all organizations with founders
-        organizations = session.exec(
-            select(Organization).where(Organization.founders != None)
-        ).all()
+        # Get all entities with founders
+        entities = session.exec(select(Entity).where(Entity.founders != None)).all()
 
         # Build founder list with company info
         founders = []
-        for org in organizations:
-            if org.founders:
+        for entity in entities:
+            if entity.founders:
                 try:
                     founder_list = (
-                        json.loads(org.founders)
-                        if isinstance(org.founders, str)
-                        else org.founders
+                        json.loads(entity.founders)
+                        if isinstance(entity.founders, str)
+                        else entity.founders
                     )
                     for founder in founder_list:
                         founders.append(
                             {
                                 "name": founder,
-                                "company": org.name,
-                                "country": org.country,
-                                "is_ai_related": org.is_ai_related,
+                                "company": entity.name,
+                                "country": entity.country,
+                                "is_ai_related": entity.is_ai_related,
                             }
                         )
                 except:

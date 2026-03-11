@@ -10,7 +10,7 @@ class AffiliationService:
             select(Affiliation).where(
                 Affiliation.author_external_id == data.author_external_id,
                 Affiliation.research_item_id == data.research_item_id,
-                Affiliation.institution_external_id == data.institution_external_id,
+                Affiliation.entity_external_id == data.entity_external_id,
             )
         ).first()
 
@@ -45,23 +45,21 @@ class AffiliationService:
             select(Affiliation).where(Affiliation.research_item_id == research_item_id)
         ).all()
 
-    def get_by_organization(self, session: Session, organization_id: int):
+    def get_by_entity(self, session: Session, entity_id: int):
         return session.exec(
-            select(Affiliation).where(Affiliation.organization_id == organization_id)
+            select(Affiliation).where(Affiliation.entity_id == entity_id)
         ).all()
 
-    def get_by_institution_external_id(
-        self, session: Session, institution_external_id: str
-    ):
+    def get_by_entity_external_id(self, session: Session, entity_external_id: str):
         return session.exec(
             select(Affiliation).where(
-                Affiliation.institution_external_id == institution_external_id
+                Affiliation.entity_external_id == entity_external_id
             )
         ).all()
 
     def get_by_ror(self, session: Session, ror: str):
         return session.exec(
-            select(Affiliation).where(Affiliation.institution_ror == ror)
+            select(Affiliation).where(Affiliation.entity_ror == ror)
         ).all()
 
     def count(self, session: Session) -> int:

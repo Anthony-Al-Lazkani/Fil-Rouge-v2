@@ -1,15 +1,12 @@
 from database import get_session
-from models import ResearchItem
+from models import ResearchItem, Entity
 from models.source import Source
 from services.affiliation_service import AffiliationService
 from services.author_service import AuthorService
 from services.research_item_service import ResearchItemService
-from services.organization_service import OrganizationService
-from services.institution_service import InstitutionService
+from services.entity_service import EntityService
 from schemas.affiliation import AffiliationCreate
 from models.author import Author
-from models.organization import Organization
-from models.institution import Institution
 from sqlmodel import select
 
 
@@ -19,39 +16,22 @@ class AffiliationProcessor:
         self.affiliation_service = AffiliationService()
         self.author_service = AuthorService()
         self.item_service = ResearchItemService()
-        self.organization_service = OrganizationService()
-        self.institution_service = InstitutionService()
+        self.entity_service = EntityService()
 
-    def find_organization(self, external_id: str = None, ror: str = None):
-        """Find organization by external_id or ror"""
-        if external_id:
-            return self.session.exec(
-                select(Organization).where(Organization.external_id == external_id)
-            ).first()
-        if ror:
-            if ror.startswith("https://ror.org/"):
-                ror = ror.replace("https://ror.org/", "")
-            return self.session.exec(
-                select(Organization).where(Organization.ror == ror)
-            ).first()
-        return None
-
-    def find_institution(self, external_id: str = None, ror: str = None):
-        """Find institution by external_id or ror"""
+    def find_entity(self, external_id: str = None, ror: str = None):
+        """Find entity by external_id or ror"""
         if external_id:
             if external_id.startswith("https://openalex.org/"):
                 ext_id = external_id.replace("https://openalex.org/", "")
             else:
                 ext_id = external_id
             return self.session.exec(
-                select(Institution).where(Institution.external_id == ext_id)
+                select(Entity).where(Entity.external_id == ext_id)
             ).first()
         if ror:
             if ror.startswith("https://ror.org/"):
                 ror = ror.replace("https://ror.org/", "")
-            return self.session.exec(
-                select(Institution).where(Institution.ror == ror)
-            ).first()
+            return self.session.exec(select(Entity).where(Entity.ror == ror)).first()
         return None
 
     def get_source_name(self, source_id: int) -> str:
@@ -70,52 +50,41 @@ class AffiliationProcessor:
         role: str = None,
     ):
         """Create an affiliation record with comprehensive information"""
-        # Get institution info from affiliation data
-        inst_external_id = aff_data.get("id")  # OpenAlex ID
-        inst_name = aff_data.get("display_name")
-        inst_ror = aff_data.get("ror")
-        inst_country_code = aff_data.get("country_code")
-        inst_type = aff_data.get("type")
+        entity_external_id = aff_data.get("id")
+        entity_name = aff_data.get("display_name")
+        entity_ror = aff_data.get("ror")
+        entity_country_code = aff_data.get("country_code")
+        entity_type = aff_data.get("type")
 
-        # Try to find institution in DB
-        institution = self.find_institution(external_id=inst_external_id, ror=inst_ror)
+        entity = self.find_entity(external_id=entity_external_id, ror=entity_ror)
 
-        if institution:
-            inst_external_id = institution.external_id
-            inst_name = institution.display_name
-            inst_ror = institution.ror
-            inst_country_code = institution.country_code
-            inst_type = institution.type
-
-        # Try to find organization in DB
-        org = self.find_organization(external_id=inst_external_id, ror=inst_ror)
-        organization_id = org.id if org else None
-        organization_name = org.name if org else None
+        if entity:
+            entity_id = entity.id
+            entity_external_id = entity.external_id
+            entity_name = entity.name or entity.display_name
+            entity_ror = entity.ror
+            entity_country_code = entity.country_code or entity.country
+            entity_type = entity.type
+        else:
+            entity_id = None
 
         aff_data_create = AffiliationCreate(
-            # Research Item
             research_item_id=research_item_id,
             research_item_external_id=research_item_data.get("external_id", ""),
             research_item_doi=research_item_data.get("doi"),
             research_item_title=research_item_data.get("title"),
             research_item_year=research_item_data.get("year"),
             research_item_source=research_item_data.get("source_name"),
-            # Author
             author_external_id=author_external_id,
             author_full_name=author_full_name,
             author_orcid=author_orcid,
-            # Institution
-            institution_external_id=inst_external_id,
-            institution_name=inst_name,
-            institution_ror=inst_ror,
-            institution_country_code=inst_country_code,
-            institution_type=inst_type,
-            # Organization
-            organization_id=organization_id,
-            organization_name=organization_name,
-            # Role
+            entity_id=entity_id,
+            entity_name=entity_name,
+            entity_external_id=entity_external_id,
+            entity_ror=entity_ror,
+            entity_country_code=entity_country_code,
+            entity_type=entity_type,
             role=role,
-            # Raw data
             raw_affiliation_data=aff_data,
         )
         return self.affiliation_service.create(self.session, aff_data_create)
@@ -129,10 +98,8 @@ class AffiliationProcessor:
         if not item:
             return 0
 
-        # Get source name
         source_name = self.get_source_name(item.source_id)
 
-        # Research item data for affiliations
         research_item_data = {
             "external_id": item.external_id,
             "doi": item.doi,

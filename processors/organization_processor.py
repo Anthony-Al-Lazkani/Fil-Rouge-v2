@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from typing import Optional, List
 
-from schemas.organization import OrganizationCreate
+from schemas.entity import EntityCreate
 
 
 class OrganizationProcessor:
@@ -60,7 +60,7 @@ class OrganizationProcessor:
             return []
         return [i.strip() for i in industries_str.split(",")]
 
-    def process_startup_dataset(self) -> List[OrganizationCreate]:
+    def process_startup_dataset(self) -> List[EntityCreate]:
         """Process Startup-Dataset CSV file."""
         path = self.data_dir / "Startup-Dataset.csv"
         if not path.exists():
@@ -82,9 +82,10 @@ class OrganizationProcessor:
                     [f.strip() for f in founders_str.split(",")] if founders_str else []
                 )
 
-                org = OrganizationCreate(
-                    source="startup-dataset",
+                org = EntityCreate(
+                    source_id=None,
                     name=name,
+                    entity_type="company",
                     type="company",
                     country=country,
                     description=self.clean_string(row.get("Description")),
@@ -97,7 +98,7 @@ class OrganizationProcessor:
 
         return organizations
 
-    def process_global_startup_success(self) -> List[OrganizationCreate]:
+    def process_global_startup_success(self) -> List[EntityCreate]:
         """Process global_startup_success_dataset CSV file."""
         path = self.data_dir / "global_startup_success_dataset.csv"
         if not path.exists():
@@ -119,9 +120,10 @@ class OrganizationProcessor:
                     for i in industries
                 )
 
-                org = OrganizationCreate(
-                    source="global_startup_success",
+                org = EntityCreate(
+                    source_id=None,
                     name=name,
+                    entity_type="company",
                     type="company",
                     country=self.clean_string(row.get("Country")),
                     founded_date=self.clean_string(row.get("Founded Year")),
@@ -142,7 +144,7 @@ class OrganizationProcessor:
 
         return organizations
 
-    def process_startups_2021(self) -> List[OrganizationCreate]:
+    def process_startups_2021(self) -> List[EntityCreate]:
         """Process Startups-in-2021-end CSV file."""
         path = self.data_dir / "Startups-in-2021-end.csv"
         if not path.exists():
@@ -151,8 +153,8 @@ class OrganizationProcessor:
         organizations = []
         with open(path, "r", encoding="utf-8") as f:
             reader = csv.reader(f)
-            next(reader)  # skip empty first column header
-            next(reader)  # skip header row
+            next(reader)
+            next(reader)
 
             for row in reader:
                 if len(row) < 2:
@@ -174,9 +176,10 @@ class OrganizationProcessor:
 
                 valuation = self.parse_number(row[2]) if len(row) > 2 else None
 
-                org = OrganizationCreate(
-                    source="startups_2021",
+                org = EntityCreate(
+                    source_id=None,
                     name=name,
+                    entity_type="company",
                     type="company",
                     country=country,
                     city=city,
@@ -188,7 +191,7 @@ class OrganizationProcessor:
 
         return organizations
 
-    def process_ai_companies(self) -> List[OrganizationCreate]:
+    def process_ai_companies(self) -> List[EntityCreate]:
         """Process AI_Companies CSV file."""
         path = self.data_dir / "AI_Companies.csv"
         if not path.exists():
@@ -213,9 +216,10 @@ class OrganizationProcessor:
                     except:
                         ai_focus = None
 
-                org = OrganizationCreate(
-                    source="ai_companies",
+                org = EntityCreate(
+                    source_id=None,
                     name=name,
+                    entity_type="company",
                     type="company",
                     country=country,
                     city=city,
