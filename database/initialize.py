@@ -17,8 +17,6 @@ from models.research_item import ResearchItem
 from models.author import Author
 from models.affiliation import Affiliation
 from models.entity import Entity
-from models.organization import Organization  # Deprecated
-from models.institution import Institution  # Deprecated
 
 # Arguments needed in order to create the engine
 FILENAME = "database.db"
