@@ -1,6 +1,8 @@
 import logging
 import sys
 import os
+from collections import defaultdict
+
 from rdflib import Graph, Literal, RDF, URIRef, Namespace
 from rdflib.namespace import XSD
 from sqlmodel import Session, select, create_engine
@@ -38,8 +40,9 @@ def peupler_robuste():
     g = Graph()
     try:
         g.parse(CONFIG["onto_file"], format="turtle")
+        logger.info("Ontologie chargée avec succès.")
     except Exception as e:
-        logger.error(f"Impossible de charger l'ontologie v2 : {e}")
+        logger.error(f"Impossible de charger l'ontologie v3 : {e}")
         return
 
     engine = create_engine(CONFIG["db_url"])
@@ -106,6 +109,8 @@ def peupler_robuste():
         # 3. TRAITEMENT DES TRAVAUX DE RECHERCHE
         try:
             items = session.exec(select(ResearchItem)).all()
+            logger.info(f"{len(items)} travaux de recherche trouvés.")
+
             for item in items:
                 item_uri = NS[f"article_{item.id}"]
                 g.add((item_uri, RDF.type, NS.TravailDeRecherche))
@@ -143,6 +148,11 @@ def peupler_robuste():
         # 4. RÉTABLISSEMENT DES LIENS (Affiliations et Écriture)
         try:
             affiliations = session.exec(select(Affiliation)).all()
+            logger.info(f"{len(affiliations)} affiliations trouvées.")
+
+            # Index pour la section co-auteurs
+            article_authors = defaultdict(list)
+
             for aff in affiliations:
                 author_uri = NS[f"chercheur_{aff.author_external_id}"]
                 item_uri = NS[f"article_{aff.research_item_id}"]
@@ -156,7 +166,7 @@ def peupler_robuste():
             logger.warning(f"Erreur lors du traitement des affiliations : {e}")
 
     g.serialize(destination=CONFIG["output_file"], format="turtle")
-    logger.info(f"Peuplement V2 terminé : {len(g)} triplets exportés.")
+    logger.info(f"Peuplement V3 terminé : {len(g)} triplets exportés.")
 
 
 if __name__ == "__main__":
