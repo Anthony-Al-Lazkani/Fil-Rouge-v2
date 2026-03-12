@@ -1,5 +1,8 @@
 # Fil-Rouge
 
+11/03/2026:
+reprise en main de tout le projet
+
 # Workflow actuel:
 uv run python -m database.initialize (si on veut réinitialiser la BDD)
 uv run uvicorn main:app --reload

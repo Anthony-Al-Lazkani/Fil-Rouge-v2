@@ -35,7 +35,24 @@ class OpenAlexInstitutionProcessor:
 
             if existing: continue
 
-            # Création de l'entité (Structure OpenAlex à plat)
+            # 1. Préparation des données Géo (en amont pour plus de clarté)
+            raw_data = inst.get("raw", {})
+            geo = raw_data.get("geo", {})
+            # On prend la ville la plus précise disponible
+            city_name = inst.get("city") or geo.get("city")
+
+            # 2. Extraction des rôles (Funder/Publisher) pour ton ontologie
+            roles_list = raw_data.get("roles", [])
+            funder_id = next((r.get("id") for r in roles_list if r.get("role") == "funder"), None)
+
+            # 3. Extraction du domaine pour les futures liaisons par email
+            website = inst.get("homepage_url")
+            domain = None
+            if website:
+                # Nettoyage simple : extrait 'washington.edu' de 'https://www.washington.edu'
+                domain = website.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
+
+            # Création de l'entité
             new_entity = Entity(
                 source_id=self.source_id,
                 external_id=ext_id,
@@ -45,15 +62,57 @@ class OpenAlexInstitutionProcessor:
                 acronyms=inst.get("acronyms", []),
                 type=inst.get("type"),
                 country_code=inst.get("country_code"),
-                city=inst.get("city"), # Souvent None dans l'API simplifiée, mais dispo dans raw
-                website=inst.get("homepage_url"),
+                city=city_name,
+                website=website,
                 works_count=inst.get("works_count", 0),
                 cited_by_count=inst.get("cited_by_count", 0),
-                raw=inst
+                raw={
+                    **inst,
+                    "_funder_id": funder_id,
+                    "_alt_names": raw_data.get("display_name_alternatives", []),
+                    "_email_domain": domain # Stockage du pivot de liaison
+                }
             )
             
             self.session.add(new_entity)
             count += 1
             
+        # Flush pour garantir que tous les IDs techniques sont générés
+        self.session.flush()
+
+
+
+        # ÉTAPE 2 : Résolution de la hiérarchie (Parent/Child)  --- pour prendre en compte les métadonnées d'affiliations des entités.
+        for inst in institutions:
+            self._resolve_hierarchy(inst)
+
         self.session.commit()
         return count
+
+    def _get_existing_entity(self, ext_id, ror):
+        """Recherche une entité par ROR ou external_id."""
+        if ror:
+            res = self.session.exec(select(Entity).where(Entity.ror == ror)).first()
+            if res: return res
+        return self.session.exec(select(Entity).where(Entity.external_id == ext_id)).first()
+
+    def _resolve_hierarchy(self, inst_data):
+        """Définit le parent_id si une relation 'child' est détectée dans OpenAlex."""
+        raw = inst_data.get("raw", {})
+        associated = raw.get("associated_institutions", [])
+        
+        # Si cette institution est un 'child', on cherche son 'parent'
+        for assoc in associated:
+            if assoc.get("relationship") == "parent":
+                parent_ext_id = assoc.get("id").split("/")[-1] # Extrait 'I19820366'
+                parent_ror = assoc.get("ror")
+                
+                # On cherche le parent en base
+                parent = self._get_existing_entity(parent_ext_id, parent_ror)
+                
+                if parent:
+                    # On cherche l'enfant actuel en base
+                    child = self._get_existing_entity(inst_data["external_id"], inst_data.get("ror"))
+                    if child and child.id != parent.id:
+                        child.parent_id = parent.id
+                        self.session.add(child)

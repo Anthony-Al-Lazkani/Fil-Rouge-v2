@@ -57,7 +57,7 @@ def main():
 
     with Session(engine) as session:
         # 0. Bases Locales (Crunchbase, AI Companies, etc.)
-        if s in ["local", "all"]:
+        if s in ["local", 'csv', "all"]:
             print("=== Running Local Databases Pipeline ===")
             data_dir = Path("data") # Dossier où sont tes CSV
             if data_dir.exists():
@@ -65,9 +65,9 @@ def main():
                 
                 # On lance les différentes méthodes du processeur
                 count = 0
-                count += local_processor.process_crunchbase_csv()
+                #count += local_processor.process_crunchbase_csv() -- j'ai enlevé CRUNCHBASE car le CSV est un enfer
                 count += local_processor.process_ai_companies()
-                count += local_processor.process_startup_dataset()
+                #count += local_processor.process_startup_dataset() -- ce sont des données synthétiques ! ça ne sert à rien
                 count += local_processor.process_startups_2021()
                 
                 print(f"Successfully processed {count} local items\n")
@@ -76,13 +76,13 @@ def main():
                 print("Dossier /data non trouvé. Skip local ingestion.\n")
 
         # 1. OpenAlex
-        if s in ["openalex", "all"]:
+        if s in ["openalex", 'open_alex', "all"]:
             print("=== Running OpenAlex Pipeline ===")
             data = crawl_openalex_ai()
             total_processed += run_source("openalex", session, data, OpenAlexProcessor, "process_works")
     
         # 2. OpenAlex Institutions
-        if s in ["openalex_inst", "all"]:
+        if s in ["openalex_inst", 'open_alex_institution', "all"]:
             print("=== Running OpenAlex Institutions Pipeline ===")
             data = crawl_openalex_institutions()
             total_processed += run_source("openalex_inst", session, data, OpenAlexInstitutionProcessor, "process_institutions")
@@ -94,7 +94,7 @@ def main():
             total_processed += run_source("arxiv", session, data, ArxivProcessor, "process_articles")
 
         # 4. Semantic Scholar (CLASSE avec arguments)
-        if s in ["semantic_scholar", "all"]:
+        if s in ["semantic_scholar", 's2', "all"]:
             print("=== Running Semantic Scholar Pipeline ===")
             key = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
             crawler = SemanticScholarCrawler(api_key=key)
@@ -121,8 +121,8 @@ def main():
             data = crawl_scanr_ai()
             total_processed += run_source("scanr", session, data, ScanRProcessor, "process_organizations")
 
-        # 7. INPI / EPO (Le grand oublié !) ---
-        if s in ["inpi", "all"]:
+        # 7. INPI / EPO
+        if s in ["inpi", 'epo', "all"]:
             print("=== Running INPI / EPO Pipeline ===")
             client_id = os.getenv("EPO_CLIENT_ID")
             client_secret = os.getenv("EPO_CLIENT_SECRET")
@@ -134,13 +134,13 @@ def main():
                 total_processed += count
                 print(f"Processed {count} items\n")
 
-        '''    
+          
         # 8. OpenCorporates
         if s in ["open_corporates", "all"]:
             print("=== Running Open Corporates Pipeline ===")
             data = crawl_opencorporates_ai()
             total_processed += run_source("open_corporates", session, data, OpenCorporatesProcessor, "process_companies")
-'''
+
         
 
     print(f"=== Pipeline Complete ===\nTotal items processed: {total_processed}")
