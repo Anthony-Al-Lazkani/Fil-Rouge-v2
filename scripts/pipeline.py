@@ -134,13 +134,13 @@ def main():
                 total_processed += count
                 print(f"Processed {count} items\n")
 
-        '''    
+          
         # 8. OpenCorporates
         if s in ["open_corporates", "all"]:
             print("=== Running Open Corporates Pipeline ===")
             data = crawl_opencorporates_ai()
             total_processed += run_source("open_corporates", session, data, OpenCorporatesProcessor, "process_companies")
-'''
+
         
 
     print(f"=== Pipeline Complete ===\nTotal items processed: {total_processed}")
