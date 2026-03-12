@@ -18,6 +18,9 @@ class Entity(SQLModel, table=True):
     external_id: Optional[str] = Field(default=None, index=True, unique=True)
     ror: Optional[str] = Field(default=None, index=True)
 
+    # Hiérarchie - donnée par open_alex_institution notamment
+    parent_id: Optional[int] = Field(default=None, foreign_key="entity.id", index=True, nullable=True)
+
     # Identité
     name: str = Field(index=True)
     display_name: Optional[str] = Field(default=None, index=True)

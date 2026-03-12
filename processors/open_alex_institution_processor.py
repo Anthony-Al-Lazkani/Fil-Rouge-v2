@@ -55,5 +55,42 @@ class OpenAlexInstitutionProcessor:
             self.session.add(new_entity)
             count += 1
             
+        # Flush pour garantir que tous les IDs techniques sont générés
+        self.session.flush()
+
+
+
+        # ÉTAPE 2 : Résolution de la hiérarchie (Parent/Child)  --- pour prendre en compte les métadonnées d'affiliations des entités.
+        for inst in institutions:
+            self._resolve_hierarchy(inst)
+
         self.session.commit()
         return count
+
+    def _get_existing_entity(self, ext_id, ror):
+        """Recherche une entité par ROR ou external_id."""
+        if ror:
+            res = self.session.exec(select(Entity).where(Entity.ror == ror)).first()
+            if res: return res
+        return self.session.exec(select(Entity).where(Entity.external_id == ext_id)).first()
+
+    def _resolve_hierarchy(self, inst_data):
+        """Définit le parent_id si une relation 'child' est détectée dans OpenAlex."""
+        raw = inst_data.get("raw", {})
+        associated = raw.get("associated_institutions", [])
+        
+        # Si cette institution est un 'child', on cherche son 'parent'
+        for assoc in associated:
+            if assoc.get("relationship") == "parent":
+                parent_ext_id = assoc.get("id").split("/")[-1] # Extrait 'I19820366'
+                parent_ror = assoc.get("ror")
+                
+                # On cherche le parent en base
+                parent = self._get_existing_entity(parent_ext_id, parent_ror)
+                
+                if parent:
+                    # On cherche l'enfant actuel en base
+                    child = self._get_existing_entity(inst_data["external_id"], inst_data.get("ror"))
+                    if child and child.id != parent.id:
+                        child.parent_id = parent.id
+                        self.session.add(child)
