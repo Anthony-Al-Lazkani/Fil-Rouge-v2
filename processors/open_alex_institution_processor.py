@@ -35,7 +35,24 @@ class OpenAlexInstitutionProcessor:
 
             if existing: continue
 
-            # Création de l'entité (Structure OpenAlex à plat)
+            # 1. Préparation des données Géo (en amont pour plus de clarté)
+            raw_data = inst.get("raw", {})
+            geo = raw_data.get("geo", {})
+            # On prend la ville la plus précise disponible
+            city_name = inst.get("city") or geo.get("city")
+
+            # 2. Extraction des rôles (Funder/Publisher) pour ton ontologie
+            roles_list = raw_data.get("roles", [])
+            funder_id = next((r.get("id") for r in roles_list if r.get("role") == "funder"), None)
+
+            # 3. Extraction du domaine pour les futures liaisons par email
+            website = inst.get("homepage_url")
+            domain = None
+            if website:
+                # Nettoyage simple : extrait 'washington.edu' de 'https://www.washington.edu'
+                domain = website.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
+
+            # Création de l'entité
             new_entity = Entity(
                 source_id=self.source_id,
                 external_id=ext_id,
@@ -45,11 +62,16 @@ class OpenAlexInstitutionProcessor:
                 acronyms=inst.get("acronyms", []),
                 type=inst.get("type"),
                 country_code=inst.get("country_code"),
-                city=inst.get("city"), # Souvent None dans l'API simplifiée, mais dispo dans raw
-                website=inst.get("homepage_url"),
+                city=city_name,
+                website=website,
                 works_count=inst.get("works_count", 0),
                 cited_by_count=inst.get("cited_by_count", 0),
-                raw=inst
+                raw={
+                    **inst,
+                    "_funder_id": funder_id,
+                    "_alt_names": raw_data.get("display_name_alternatives", []),
+                    "_email_domain": domain # Stockage du pivot de liaison
+                }
             )
             
             self.session.add(new_entity)

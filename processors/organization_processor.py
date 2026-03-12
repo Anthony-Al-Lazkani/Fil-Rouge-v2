@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import List, Optional
 from sqlmodel import Session, select 
 from database import engine
-from models import Entity, Source
+from models import Entity, Source, Affiliation, Author
 
 class OrganizationProcessor:
     def __init__(self, session: Session, data_dir: Path):
@@ -66,160 +66,98 @@ class OrganizationProcessor:
             self.session.add(entity)
             return True
         return False
+    
 
     # --- MÉTHODES D'INGESTION ---
-
-    def process_crunchbase_csv(self) -> int:
-        """Source 1: Crunchbase (Récupération totale via scan de contenu)."""
-        path = self.data_dir / "Crunchbase_csv.csv"
-        if not path.exists(): return 0
-        count = 0
-        with open(path, "r", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            next(reader, None) # Skip header
-
-            for row in reader:
-                if not row or len(row) < 5: continue
-                
-                name = self.clean_string(row[0])
-                if not name: continue
-
-                # --- 1. IDENTIFICATION DES PIVOTS (Website & Localisation) ---
-                web_idx = next((i for i, c in enumerate(row) if "." in str(c) and any(ext in str(c).lower() for ext in [".com", ".ai", ".io"])), -1)
-                loc_raw = next((c for c in row if any(country in str(c) for country in ["United States", "France", "China", "UK", "Germany", "Japan"])), None)
-
-                # --- 2. EXTRACTION FINANCIÈRE ---
-                money_cells = [c for c in row if "$" in str(c)]
-                amounts = []
-                for mc in money_cells:
-                    val = self.parse_number(mc.split("to")[-1])
-                    if val: amounts.append(val)
-                
-                total_funding = max(amounts) if amounts else None
-                valuation = min(amounts) if len(amounts) > 1 else None
-
-                # --- 3. DATES & STATUS ---
-                last_funding_date = next((c for c in row if any(y in str(c) for y in ["2024", "2025", "2026"])), None)
-                founded_date = next((c for c in row if any(m in str(c) for m in ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]) and c != last_funding_date), None)
-
-                # --- 4. INDUSTRIES ---
-                industries_raw = next((c for c in row if "," in str(c) and len(str(c)) > 10 and c != loc_raw and len(str(c)) < 100), None)
-
-                entity = Entity(
-                    source_id=self.source_id,
-                    name=name,
-                    type="company",
-                    website=row[web_idx] if web_idx != -1 else None,
-                    city=loc_raw.split(",")[0].strip() if loc_raw else None,
-                    country_code="USA" if loc_raw and "United States" in loc_raw else None,
-                    operating_status="Successful",
-                    total_funding=total_funding,
-                    valuation=valuation,
-                    founded_date=founded_date,
-                    last_funding_date=last_funding_date,
-                    industries=self.parse_industries(industries_raw) if industries_raw else [],
-                    is_ai_related=True,
-                    raw={"row": row, "_extraction_source": "crunchbase_v4_deep_scan"}
-                )
-                if self._safe_add_entity(entity): count += 1
-
-        self.session.commit()
-        return count
-
     def process_ai_companies(self) -> int:
-        """Source 2: AI_Companies (Focus IA)."""
-        path = self.data_dir / "AI_Companies.csv"
-        if not path.exists(): return 0
-        count = 0
-        with open(path, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                name = self.clean_string(row.get("Company_Name"))
-                if not name: continue
-                
-                loc_raw = row.get("Location", "")
-                city = loc_raw.split(",")[0].strip() if loc_raw and "," in loc_raw else None
-                country_code = "USA" 
-                
-                ai_focus_raw = self.clean_string(row.get("Percent AI Service Focus"))
-                ai_focus = None
-                if ai_focus_raw:
-                    try:
-                        clean_val = ai_focus_raw.replace("%", "").split("-")[0].strip()
-                        ai_focus = int(float(clean_val))
-                    except (ValueError, TypeError):
-                        ai_focus = None
+            """Source 2: AI_Companies (Focus IA avec détection pays correcte)."""
+            path = self.data_dir / "AI_Companies.csv"
+            if not path.exists(): return 0
+            count = 0
+            with open(path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    name = self.clean_string(row.get("Company_Name"))
+                    if not name: continue
+                    
+                    # --- GESTION GÉOGRAPHIQUE ---
+                    loc_raw = row.get("Location", "")
+                    city = None
+                    country_code = None
+                    
+                    if loc_raw and "," in loc_raw:
+                        parts = [p.strip() for p in loc_raw.split(",")]
+                        city = parts[0]
+                        last_part = parts[-1]
+                        
+                        # Si la dernière partie fait 2 caractères (CA, TX, FL...), c'est un État US
+                        if len(last_part) == 2 and last_part.isupper():
+                            country_code = "USA"
+                        else:
+                            # Sinon on prend le nom du pays (Estonia, Poland, Pakistan...)
+                            country_code = last_part
+                    
+                    # --- FOCUS IA ---
+                    ai_focus_raw = self.clean_string(row.get("Percent AI Service Focus"))
+                    ai_focus = None
+                    if ai_focus_raw:
+                        try:
+                            clean_val = ai_focus_raw.replace("%", "").split("-")[0].strip()
+                            ai_focus = int(float(clean_val))
+                        except (ValueError, TypeError):
+                            ai_focus = None
 
-                entity = Entity(
-                    source_id=self.source_id,
-                    name=name,
-                    type="company",
-                    website=self.clean_string(row.get("Website")),
-                    city=city,
-                    country_code=country_code,
-                    ai_focus_percent=ai_focus,
-                    is_ai_related=True,
-                    raw={**row, "_extraction_source": "ai_companies"}
-                )
-                if self._safe_add_entity(entity): count += 1
-        self.session.commit()
-        return count
+                    entity = Entity(
+                        source_id=self.source_id,
+                        name=name,
+                        type="company",
+                        website=self.clean_string(row.get("Website")),
+                        city=city,
+                        country_code=country_code,
+                        ai_focus_percent=ai_focus,
+                        is_ai_related=True,
+                        raw={**row, "_extraction_source": "ai_companies"}
+                    )
+                    if self._safe_add_entity(entity): 
+                        count += 1
+                        
+            self.session.commit()
+            return count
 
-    def process_startup_dataset(self) -> int:
-        """Source 3: Startup-Dataset.csv (Focus Croissance & Revenus)."""
-        path = self.data_dir / "Startup-Dataset.csv"
-        if not path.exists(): return 0
-        count = 0
-        with open(path, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                name = self.clean_string(row.get("Name"))
-                if not name: continue
-                
-                founders_raw = row.get("Founders", "")
-                founders_list = [f.strip() for f in founders_raw.split(",") if f]
-                rev_y3 = self.parse_number(row.get("Revenue Year 3"))
-
-                entity = Entity(
-                    source_id=self.source_id,
-                    name=name,
-                    type="company",
-                    country_code=self.clean_string(row.get("Country")),
-                    description=self.clean_string(row.get("Description")),
-                    founded_date=self.clean_string(row.get("Launch Date")),
-                    operating_status=self.clean_string(row.get("Current Status")),
-                    total_funding=rev_y3, 
-                    founders=founders_list,
-                    is_ai_related=False, 
-                    raw={**row, "_extraction_source": "startup_dataset_growth"}
-                )
-                if self._safe_add_entity(entity): count += 1
-        self.session.commit()
-        return count
 
     def process_startups_2021(self) -> int:
-        """Source 4: Startups-in-2021-end.csv (Nettoyage final)."""
+        """Source 4: Startups-in-2021-end.csv (Entreprises + Investisseurs en métadonnées)."""
+        import re
         path = self.data_dir / "Startups-in-2021-end.csv"
         if not path.exists(): return 0
         count = 0
+
+        def extract_year(s) -> Optional[str]:
+            if not s: return None
+            # Utilisation d'une raw string pour éviter le SyntaxWarning sur \d
+            match = re.search(r'\b(19|20)\d{2}\b', str(s))
+            return match.group(0) if match else None
+
         with open(path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 name = self.clean_string(row.get("Company"))
                 if not name: continue
                 
+                # 1. VALUATION
                 val_raw = row.get("Valuation ($B)", "0").replace("$", "")
                 try:
                     valuation = float(val_raw) * 1_000_000_000
                 except:
                     valuation = None
 
+                # 2. CRÉATION DE L'ENTITÉ (L'entreprise)
                 entity = Entity(
                     source_id=self.source_id,
                     name=name,
                     type="company",
                     valuation=valuation,
-                    founded_date=self.clean_string(row.get("Date Joined")),
+                    founded_date=extract_year(row.get("Date Joined")),
                     country_code=self.clean_string(row.get("Country")),
                     city=self.clean_string(row.get("City")),
                     industries=self.parse_industries(row.get("Industry")),
@@ -227,7 +165,121 @@ class OrganizationProcessor:
                     raw={**row, "_extraction_source": "startups_2021"}
                 )
                 
-                if self._safe_add_entity(entity): count += 1
-        
-        self.session.commit()
-        return count
+                if self._safe_add_entity(entity):
+                    self.session.flush() 
+                    count += 1
+
+                    # 3. GESTION DES INVESTISSEURS (Stockage propre dans Entity + lien dans raw)
+                    investors_raw = row.get("Select Investors", "")
+                    if investors_raw:
+                        investors_list = [i.strip() for i in investors_raw.split(",") if i.strip()]
+                        investor_refs = []
+
+                        for inv_name in investors_list:
+                            # On cherche ou crée l'entité Investisseur dans la table Entity
+                            investor_ent = self.session.exec(
+                                select(Entity).where(Entity.name == inv_name)
+                            ).first()
+
+                            if not investor_ent:
+                                investor_ent = Entity(
+                                    source_id=self.source_id,
+                                    name=inv_name,
+                                    type="investor",
+                                    is_ai_related=entity.is_ai_related,
+                                    raw={"_first_seen_investing_in": name}
+                                )
+                                self.session.add(investor_ent)
+                                self.session.flush()
+                            
+                            # On stocke une référence légère dans le raw de l'entreprise
+                            investor_refs.append({
+                                "id": investor_ent.id,
+                                "name": investor_ent.name
+                            })
+
+                        # Mise à jour du champ raw avec les liens vers les investisseurs
+                        entity.raw["investor_links"] = investor_refs
+                        self.session.add(entity)
+            
+            self.session.commit()
+            return count
+
+    # J'annule CRUNCHBASE pour le moment, ça ne donne rien
+'''
+    def process_crunchbase_csv(self) -> int:
+            """Source 1: Crunchbase (Version ultra-robuste contre les décalages)."""
+            import re
+            import csv
+            path = self.data_dir / "Crunchbase_csv.csv"
+            if not path.exists(): return 0
+            count = 0
+            
+            def extract_year(s) -> Optional[str]:
+                if not s: return None
+                # Cherche 4 chiffres (ex: 1993, 2021)
+                match = re.search(r'(19|20){2}', str(s))
+                return match.group(0) if match else None
+
+            def clean_money(s) -> Optional[float]:
+                if not s or s in ("—", ""): return None
+                # Supprime tout sauf les chiffres et les suffixes (M, B, K)
+                # Gère les devises comme CNY, €, $
+                s = str(s).strip().replace(",", "").replace(" ", "")
+                return self.parse_number(s)
+
+            with open(path, "r", encoding="utf-8") as f:
+                # On force le quotechar pour que "Apr 5, 1993" soit un seul bloc
+                reader = csv.DictReader(f, delimiter=',', quotechar='"')
+
+                for row in reader:
+                    # 1. IDENTITÉ
+                    name = self.clean_string(row.get("Organization Name"))
+                    if not name: continue
+
+                    # 2. GÉOGRAPHIE DYNAMIQUE (Dernier élément = Pays)
+                    loc_raw = row.get("Headquarters Location")
+                    city, country_code = None, None
+                    if loc_raw:
+                        parts = [p.strip() for p in loc_raw.split(",")]
+                        city = parts[0]
+                        country_name = parts[-1]
+                        # Mapping ISO rapide
+                        mapping = {"United States": "USA", "France": "FRA", "China": "CHN", "Germany": "DEU", "Singapore": "SGP", "UK": "GBR"}
+                        country_code = mapping.get(country_name, country_name[:3].upper())
+
+                    # 3. FINANCE (On nettoie les symboles monétaires)
+                    total_funding = clean_money(row.get("Total Funding Amount"))
+                    rev_raw = row.get("Estimated Revenue Range", "")
+                    valuation = self.parse_number(rev_raw.split("to")[-1]) if "to" in rev_raw else None
+
+                    # 4. DATES (Extraction d'année stricte)
+                    founded_year = extract_year(row.get("Founded Date"))
+                    last_funding_year = extract_year(row.get("Last Funding Date"))
+
+                    # 5. INDUSTRIES (Déjà propre grâce au DictReader)
+                    industries_list = self.parse_industries(row.get("Industries", ""))
+
+                    entity = Entity(
+                        source_id=self.source_id,
+                        name=name,
+                        type="company",
+                        website=row.get("Website"),
+                        city=city,
+                        country_code=country_code,
+                        operating_status=row.get("Operating Status", "Active"),
+                        total_funding=total_funding,
+                        valuation=valuation,
+                        founded_date=founded_year,
+                        last_funding_date=last_funding_year,
+                        industries=industries_list,
+                        is_ai_related=True,
+                        raw={"row": row, "_extraction_source": "crunchbase_v8_final_stable"}
+                    )
+                    
+                    if self._safe_add_entity(entity): 
+                        count += 1
+
+            self.session.commit()
+            return count
+'''
