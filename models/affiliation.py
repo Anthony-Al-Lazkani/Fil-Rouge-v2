@@ -16,7 +16,13 @@ class Affiliation(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
     # --- LIENS TECHNIQUES (Pour la BDD) ---
-    research_item_id: int = Field(foreign_key="researchitem.id", index=True)
+    # Changé en Optional[int] avec nullable=True pour accepter les leaders (ScanR)
+    research_item_id: Optional[int] = Field(
+        default=None, 
+        foreign_key="researchitem.id", 
+        index=True, 
+        nullable=True
+    )
     entity_id: Optional[int] = Field(foreign_key="entity.id", nullable=True, index=True)
     
     # --- IDENTIFIANTS MÉTIER (Pour l'Ontologie & Lisibilité) ---
