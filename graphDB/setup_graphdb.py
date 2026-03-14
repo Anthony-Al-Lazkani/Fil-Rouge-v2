@@ -6,8 +6,7 @@ repo-config doit être dans le même dossier que setup_graphdb.py
 import requests
 
 GRAPHDB_URL = "http://localhost:7200"
-REPO_ID = "fil-rougev2"
-
+REPO_ID = "fil-rougev1"
 
 def create_repository():
     # Envoyer le fichier TTL en multipart/form-data

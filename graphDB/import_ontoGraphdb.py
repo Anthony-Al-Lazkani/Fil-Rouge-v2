@@ -7,8 +7,7 @@ charge l'ontologie version ttl
 import requests
 
 GRAPHDB_URL = "http://localhost:7200"
-REPO_ID = "fil-rougev2"
-
+REPO_ID = "fil-rougev1"
 
 def load_file(filepath):
     with open(filepath, "rb") as f:
@@ -32,7 +31,6 @@ def count_triples():
     )
     count = response.json()["results"]["bindings"][0]["count"]["value"]
     print(f"Nombre de triples : {count}")
-
 
 if __name__ == "__main__":
     load_file("../ontologie/onto_v3.ttl")

@@ -5,13 +5,13 @@
 @prefix graphdb: <http://www.ontotext.com/config/graphdb#> .
 
 [] a rep:Repository ;
-    rep:repositoryID "fil-rougev2" ;
+    rep:repositoryID "fil-rougev1" ;
     rdfs:label "Fil Rouge" ;
     rep:repositoryImpl [
         rep:repositoryType "graphdb:SailRepository" ;
         sr:sailImpl [
             sail:sailType "graphdb:Sail" ;
-            graphdb:ruleset "rdfsplus-optimized" ;
+            graphdb:ruleset "owl2-rl" ;
             graphdb:base-URL "http://example.org/frg#" ;
             graphdb:repository-type "file-repository"
         ]
