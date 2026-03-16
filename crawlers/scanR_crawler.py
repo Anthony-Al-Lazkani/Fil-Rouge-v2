@@ -1,5 +1,6 @@
 import requests
 import time
+import json
 from typing import List, Dict, Any
 
 # La nouvelle URL identifiée via l'inspecteur réseau
@@ -32,7 +33,11 @@ def crawl_scanr_ai(query: str = "intelligence artificielle", max_pages: int = 6)
                 print(f"Erreur {response.status_code}: {response.text}")
                 break
                 
-            data = response.json()
+            # --- FIX ENCODAGE ICI ---
+            # Au lieu de response.json(), on récupère le texte brut et on le décode proprement
+            raw_text = response.text
+            data = json.loads(raw_text) # json.loads gère correctement les \u00e9 par défaut
+            # -------------------------
             
             # Dans Elasticsearch, les résultats sont dans hits -> hits
             hits = data.get("hits", {}).get("hits", [])
