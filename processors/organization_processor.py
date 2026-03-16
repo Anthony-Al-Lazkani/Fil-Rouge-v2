@@ -97,6 +97,19 @@ class OrganizationProcessor:
                             # Sinon on prend le nom du pays (Estonia, Poland, Pakistan...)
                             country_code = last_part
                     
+                    # --- VALUATION (Minimum Project Size) ---
+                    proj_size_raw = row.get("Minimum Project Size", "")
+                    valuation = None
+                    if proj_size_raw and proj_size_raw not in ("Undisclosed", ""):
+                        try:
+                            # On retire "$", "," et "+" pour ne garder que le nombre
+                            clean_val = proj_size_raw.replace("$", "").replace(",", "").replace("+", "").strip()
+                            valuation = float(clean_val)
+                        except (ValueError, TypeError):
+                            valuation = None
+
+
+                    
                     # --- FOCUS IA ---
                     ai_focus_raw = self.clean_string(row.get("Percent AI Service Focus"))
                     ai_focus = None
@@ -115,6 +128,7 @@ class OrganizationProcessor:
                         city=city,
                         country_code=country_code,
                         ai_focus_percent=ai_focus,
+                        valuation=valuation,
                         is_ai_related=True,
                         raw={**row, "_extraction_source": "ai_companies"}
                     )
