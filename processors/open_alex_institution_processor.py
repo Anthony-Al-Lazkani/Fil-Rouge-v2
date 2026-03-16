@@ -51,6 +51,28 @@ class OpenAlexInstitutionProcessor:
             if website:
                 # Nettoyage simple : extrait 'washington.edu' de 'https://www.washington.edu'
                 domain = website.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
+            
+            # --- EXTRACTION DES TOPICS (Mapping vers Industries) ---
+            topics_data = raw_data.get("topics", [])
+            # On récupère les display_name des topics, subfields et fields pour couvrir large
+            topics_list = []
+            for t in topics_data:
+                topics_list.append(t.get("display_name"))
+                if "subfield" in t:
+                    topics_list.append(t["subfield"].get("display_name"))
+                if "field" in t:
+                    topics_list.append(t["field"].get("display_name"))
+            
+            # Déduplication et nettoyage
+            unique_topics = list(set(filter(None, topics_list)))
+
+            # Vérification automatique de la spécificité IA via les topics
+            is_ai = any("artificial intelligence" in s.lower() for s in unique_topics)
+
+            # --- VALORISATION ACADÉMIQUE ---
+            summary = raw_data.get("summary_stats", {})
+            h_index = summary.get("h_index", 0)
+            i10_index = summary.get("i10_index", 0)
 
             # Création de l'entité
             new_entity = Entity(
@@ -64,13 +86,16 @@ class OpenAlexInstitutionProcessor:
                 country_code=inst.get("country_code"),
                 city=city_name,
                 website=website,
+                industries=unique_topics, # Injection des topics OpenAlex ici
+                is_ai_related=is_ai or inst.get("is_ai_related"), # Double check IA
                 works_count=inst.get("works_count", 0),
                 cited_by_count=inst.get("cited_by_count", 0),
                 raw={
                     **inst,
                     "_funder_id": funder_id,
-                    "_alt_names": raw_data.get("display_name_alternatives", []),
-                    "_email_domain": domain # Stockage du pivot de liaison
+                    "_h_index": h_index,       # Valorisation de l'impact
+                    "_i10_index": i10_index,   # Valorisation de la régularité
+                    "_email_domain": domain
                 }
             )
             

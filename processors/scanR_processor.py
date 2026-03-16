@@ -1,6 +1,7 @@
 """
 Processeur ScanR enrichi.
-Extrait les données géographiques, temporelles, les liens web et les leaders (Directeurs/Responsables).
+Extrait les données géographiques, temporelles, les liens web, 
+les leaders (Directeurs) et gère la hiérarchie des tutelles.
 """
 
 from sqlmodel import Session, select
@@ -30,7 +31,6 @@ class ScanRProcessor:
                 continue
             
             full_name = f"{first_name} {last_name}".upper()
-            # On utilise le slug standardisé : person_prenom_nom
             clean_first = first_name.lower().strip()
             clean_last = last_name.lower().strip()
             a_slug = f"person_{clean_first}_{clean_last}"
@@ -69,7 +69,12 @@ class ScanRProcessor:
         for data in orgs:
             raw = data.get("raw", {})
             ext_id = str(data["external_id"])
+            rnsr_domains = raw.get("rnsr_domains", [])
+            industries_to_use = [d for d in rnsr_domains if d]
             
+            if not industries_to_use:
+                industries_to_use = raw.get("categories", [])
+
             existing_entity = self.session.exec(
                 select(Entity).where(Entity.external_id == ext_id)
             ).first()
@@ -92,45 +97,92 @@ class ScanRProcessor:
 
                 addr = raw.get("address", [{}])[0]
                 city = addr.get("city")
-                country = addr.get("country", "France")
+                country = addr.get("iso3") or addr.get("country", "France")
+
+                # Extraction des domaines -> industries
+                rnsr_domains = raw.get("rnsr_domains", [])
+                industries = [d for d in rnsr_domains if d] 
+
+                # Extraction des tutelles -> parent_entities
+                # On récupère les labels des établissements de tutelle
+                tutelles_labels = [
+                    rel.get("label") 
+                    for rel in raw.get("institutions", []) 
+                    if rel.get("relationType") == "établissement tutelle"
+                ]
 
                 existing_entity = Entity(
                     source_id=self.scanr_source.id,
                     external_id=ext_id,
                     name=full_name or "Nom inconnu",
                     display_name=display_name,
-                    type=data["type"], 
+                    type=data.get("type", "research_structure"), 
                     city=city,
-                    country_code=country,
+                    country_code=addr.get("iso3") or "FRA",
                     website=website,
+                    industries=list(industries_to_use),
                     founded_date=str(raw.get("creationYear")) if raw.get("creationYear") else None,
                     operating_status=raw.get("status"),
-                    is_ai_related=True,
-                    raw={**raw, "_extracted_email": email, "_extracted_twitter": twitter}
+                    is_ai_related=True, # Puisque extrait via pipeline IA
+                    raw={**raw, 
+                         "_extracted_email": email, 
+                         "_extracted_twitter": twitter,
+                         "tutelles": tutelles_labels,
+                         "is_french": raw.get("isFrench", True)
+                    }    
                 )
                 self.session.add(existing_entity)
-                self.session.flush() # Pour avoir l'ID pour les leaders
+                self.session.flush() 
+
+
+                # --- RÉSOLUTION DE LA HIÉRARCHIE (Lien Parent via Tutelles) ---
+                for inst_rel in raw.get("institutions", []):
+                    if inst_rel.get("relationType") == "établissement tutelle":
+                        p_ext_id = str(inst_rel.get("structure"))
+                        # On cherche si la tutelle (ex: Inria) est déjà présente en base
+                        parent = self.session.exec(
+                            select(Entity).where(Entity.external_id == p_ext_id)
+                        ).first()
+                        if parent:
+                            existing_entity.parent_id = parent.id
+                            # Pas besoin de session.add, existing_entity est déjà suivi
 
             # --- TRAITEMENT DES LEADERS (Hervé Glotin & co) ---
             if raw.get("leaders"):
                 self.process_leaders(existing_entity.id, raw["leaders"])
 
-            # --- GESTION DES BREVETS ---
+            # --- GESTION DES BREVETS (ALIGNEMENT STRICT) ---
             for p_data in data.get("patents", []):
-                p_ext_id = str(p_data["external_id"])
+                p_ext_id = str(p_data.get("external_id"))
+                if not p_ext_id: continue
+                
                 existing_patent = self.session.exec(
                     select(ResearchItem).where(ResearchItem.external_id == p_ext_id)
                 ).first()
                 
+                # On définit la thématique ici pour être sûr de l'alignement
+                # On tire la valeur DIRECTEMENT de ce qu'on vient d'écrire dans l'entité
+                tags_a_utiliser = existing_entity.industries 
+
                 if not existing_patent:
+                    p_title = p_data.get("title")
+                    if isinstance(p_title, dict):
+                        p_title = p_title.get("fr") or p_title.get("default")
+                    
                     self.session.add(ResearchItem(
                         source_id=self.epo_source.id,
                         external_id=p_ext_id,
-                        title=p_data["title"],
+                        title=p_title,
                         type="patent",
                         is_open_access=False,
+                        # EGALITE STRICTE ICI
+                        topics=tags_a_utiliser, 
                         raw={"discovery_source": "scanr", "owner_id": ext_id, "original_data": p_data}
                     ))
+                else:
+                    # MISE À JOUR : On force l'alignement même si le brevet existait
+                    existing_patent.topics = tags_a_utiliser
+                    self.session.add(existing_patent)
 
             count += 1
             
