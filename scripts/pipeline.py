@@ -65,10 +65,10 @@ def main():
                 
                 # On lance les différentes méthodes du processeur
                 count = 0
-                #count += local_processor.process_crunchbase_csv() -- j'ai enlevé CRUNCHBASE car le CSV est un enfer
-                count += local_processor.process_ai_companies()
+                count += local_processor.process_crunchbase_csv() #j'ai enlevé CRUNCHBASE car le CSV est un enfer
+                #count += local_processor.process_ai_companies()
                 #count += local_processor.process_startup_dataset() -- ce sont des données synthétiques ! ça ne sert à rien
-                count += local_processor.process_startups_2021()
+                #count += local_processor.process_startups_2021()
                 
                 print(f"Successfully processed {count} local items\n")
                 total_processed += count
