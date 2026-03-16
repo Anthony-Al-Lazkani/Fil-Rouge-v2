@@ -3,6 +3,7 @@ créer le repository dans graphDB
 Lancer GraphDB avant
 repo-config doit être dans le même dossier que setup_graphdb.py
 """
+import os
 import requests
 
 GRAPHDB_URL = "http://localhost:7200"
@@ -10,7 +11,8 @@ REPO_ID = "fil-rougev1"
 
 def create_repository():
     # Envoyer le fichier TTL en multipart/form-data
-    with open("repo-config.ttl", "rb") as f:
+    config_path = os.path.join(os.path.dirname(__file__), "repo-config.ttl")
+    with open(config_path, "rb") as f:
         response = requests.post(
             f"{GRAPHDB_URL}/rest/repositories",
             files={"config": ("repo-config.ttl", f, "multipart/form-data")}

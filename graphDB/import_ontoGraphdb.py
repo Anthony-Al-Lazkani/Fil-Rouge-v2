@@ -4,6 +4,8 @@ lancer graphDB sur le port 7200
 lancer import_ontoGraphdb.py
 charge l'ontologie version ttl
 """
+import os
+
 import requests
 
 GRAPHDB_URL = "http://localhost:7200"
@@ -33,5 +35,6 @@ def count_triples():
     print(f"Nombre de triples : {count}")
 
 if __name__ == "__main__":
-    load_file("../ontologie/onto_v3.ttl")
+    chemin = os.path.join(os.path.dirname(__file__), "..", "ontologie", "onto_v3.ttl")
+    load_file(chemin)
     count_triples()

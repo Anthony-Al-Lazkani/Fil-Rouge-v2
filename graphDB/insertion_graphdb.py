@@ -8,6 +8,8 @@ import requests
 import re
 import time
 
+import unicodedata
+
 GRAPHDB_URL = "http://localhost:7200"
 REPO_ID = "fil-rougev1"
 DB_PATH = Path(__file__).parent.parent / "database.db"
@@ -38,6 +40,7 @@ def sparql_update(query):
 def clean_uri(text):
     if not text:
         return "unknown"
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
     text = text.strip().replace(" ", "_").replace("'", "").replace('"', '')
     text = re.sub(r'[^a-zA-Z0-9_\-]', '_', text)
     return text[:120]
@@ -99,6 +102,12 @@ def peupler_entites():
     rows = conn.execute(f"SELECT * FROM entity LIMIT {LIMIT}").fetchall()
     total, ok = len(rows), 0
 
+    # Pré-charger tous les parents en une seule requête
+    parent_map = {}
+    parent_rows = conn.execute("SELECT id, external_id, ror FROM entity WHERE id IN (SELECT DISTINCT parent_id FROM entity WHERE parent_id IS NOT NULL)").fetchall()
+    for pr in parent_rows:
+        parent_map[pr["id"]] = clean_uri(pr["external_id"] or pr["ror"])
+
     for i, r in enumerate(rows, 1):
         uri = clean_uri(r["external_id"] or r["ror"] or f"entity_{r['id']}")
         nom = escape(r["display_name"] or r["name"])
@@ -146,7 +155,7 @@ def peupler_entites():
         if etype in ("company", "startup"):
             classe = "Entreprise"
         elif etype == "education":
-            classe = "Université"
+            classe = "Universite"
         elif etype == "facility":
             classe = "Laboratoire"
         elif etype in ("government", "nonprofit", "archive", "funder"):
@@ -154,20 +163,12 @@ def peupler_entites():
         else:
             classe = "Organisation"
 
-        pays_uri = clean_uri(country) if country else None
+        # URI pays : remplacer espaces par underscore
+        pays_uri = clean_uri(country.replace(" ", "_")) if country else None
 
-        # Hiérarchie parent
+        # Parent pré-chargé
         parent_id = r["parent_id"]
-        parent_ext = None
-        if parent_id:
-            conn2 = sqlite3.connect(DB_PATH)
-            conn2.row_factory = sqlite3.Row
-            parent_row = conn2.execute(
-                "SELECT external_id, ror FROM entity WHERE id = ?", (parent_id,)
-            ).fetchone()
-            if parent_row:
-                parent_ext = clean_uri(parent_row["external_id"] or parent_row["ror"])
-            conn2.close()
+        parent_ext = parent_map.get(parent_id) if parent_id else None
 
         extras = ""
         if website:
@@ -204,26 +205,24 @@ def peupler_entites():
             extras += f':{uri} :acronyme "{escape(str(acr))}" .\n'
 
         query = f"""
-        DELETE {{ :{uri} :aPourNomOrganisation ?old ; :typeOrganisation ?oldType }}
-        INSERT {{
+        DELETE WHERE {{ :{uri} ?p ?o }} ;
+        INSERT DATA {{
             :{uri} a :{classe} ;
                 :aPourNomOrganisation "{nom}" ;
                 :typeOrganisation "{escape(etype)}" .
-            {f':{uri} :estLocaliseEn :pays_{pays_uri} . :pays_{pays_uri} a :Pays ; :codePays "{country}" .' if pays_uri else ""}
+            {f':{uri} :estLocaliseEn :pays_{pays_uri} . :pays_{pays_uri} a :Pays ; :codePays "{escape(country)}" .' if pays_uri else ""}
             {extras}
         }}
-        WHERE {{ OPTIONAL {{ :{uri} :aPourNomOrganisation ?old ; :typeOrganisation ?oldType }} }}
         """
 
         if sparql_update(query):
             ok += 1
         if i % 10 == 0:
-            print(f"  → {i}/{total} entités traitées")
+            print(f"  → {i}/{total} entites traitees")
             time.sleep(0.1)
 
     conn.close()
-    print(f"Entités : {ok}/{total}")
-
+    print(f"Entites : {ok}/{total}")
 
 # ARTICLES (table: researchitem)
 
@@ -389,6 +388,8 @@ def compter_triples():
 
 
 if __name__ == "__main__":
+    import time as _time
+    _start = _time.time()
     print(f"Peuplement de GraphDB (LIMIT={LIMIT})...\n")
 
     print("Personnes...")
@@ -408,4 +409,6 @@ if __name__ == "__main__":
     print("✅ Affiliations OK\n")
 
     compter_triples()
-    print("\n✅ Terminé !")
+    elapsed = _time.time() - _start
+    minutes, seconds = divmod(int(elapsed), 60)
+    print(f"\n✅ Terminé en {minutes}m {seconds}s")
