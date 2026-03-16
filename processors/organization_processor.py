@@ -205,81 +205,139 @@ class OrganizationProcessor:
             self.session.commit()
             return count
 
-    # J'annule CRUNCHBASE pour le moment, ça ne donne rien
-'''
     def process_crunchbase_csv(self) -> int:
-            """Source 1: Crunchbase (Version ultra-robuste contre les décalages)."""
-            import re
-            import csv
-            path = self.data_dir / "Crunchbase_csv.csv"
-            if not path.exists(): return 0
-            count = 0
-            
-            def extract_year(s) -> Optional[str]:
-                if not s: return None
-                # Cherche 4 chiffres (ex: 1993, 2021)
-                match = re.search(r'(19|20){2}', str(s))
-                return match.group(0) if match else None
+        """Source 1: Crunchbase (Version stable avec mapping Author & Entity correct)."""
+        import re
+        import csv
+        path = self.data_dir / "Crunchbase_csv.csv"
+        if not path.exists(): return 0
+        count = 0
+        
+        def extract_year(s) -> Optional[str]:
+            if not s: return None
+            # Cherche 4 chiffres commençant par 19 ou 20
+            match = re.search(r'\b(18|19|20)\d{2}\b', str(s))
+            return match.group(0) if match else None
 
-            def clean_money(s) -> Optional[float]:
-                if not s or s in ("—", ""): return None
-                # Supprime tout sauf les chiffres et les suffixes (M, B, K)
-                # Gère les devises comme CNY, €, $
-                s = str(s).strip().replace(",", "").replace(" ", "")
+        def clean_money(s) -> Optional[float]:
+            if not s or s in ("—", ""): return None
+            # Nettoie les virgules et espaces pour le parsing numérique
+            s = str(s).strip().replace(",", "").replace(" ", "").replace("$", "")
+            try:
+                return float(s)
+            except:
                 return self.parse_number(s)
 
-            with open(path, "r", encoding="utf-8") as f:
-                # On force le quotechar pour que "Apr 5, 1993" soit un seul bloc
-                reader = csv.DictReader(f, delimiter=',', quotechar='"')
+        with open(path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=',', quotechar='"')
 
-                for row in reader:
-                    # 1. IDENTITÉ
-                    name = self.clean_string(row.get("Organization Name"))
-                    if not name: continue
+            for row in reader:
+                # 1. IDENTITÉ
+                name = self.clean_string(row.get("Organization Name"))
+                if not name: continue
 
-                    # 2. GÉOGRAPHIE DYNAMIQUE (Dernier élément = Pays)
-                    loc_raw = row.get("Headquarters Location")
-                    city, country_code = None, None
-                    if loc_raw:
-                        parts = [p.strip() for p in loc_raw.split(",")]
-                        city = parts[0]
-                        country_name = parts[-1]
-                        # Mapping ISO rapide
-                        mapping = {"United States": "USA", "France": "FRA", "China": "CHN", "Germany": "DEU", "Singapore": "SGP", "UK": "GBR"}
-                        country_code = mapping.get(country_name, country_name[:3].upper())
+                # 2. GÉOGRAPHIE
+                loc_raw = row.get("Headquarters Location")
+                city, country_code = None, None
+                if loc_raw:
+                    parts = [p.strip() for p in loc_raw.split(",")]
+                    city = parts[0]
+                    country_name = parts[-1]
+                    mapping = {"United States": "USA", "France": "FRA", "China": "CHN", "Germany": "DEU", "Singapore": "SGP", "UK": "GBR"}
+                    country_code = mapping.get(country_name, country_name[:3].upper())
 
-                    # 3. FINANCE (On nettoie les symboles monétaires)
-                    total_funding = clean_money(row.get("Total Funding Amount"))
-                    rev_raw = row.get("Estimated Revenue Range", "")
-                    valuation = self.parse_number(rev_raw.split("to")[-1]) if "to" in rev_raw else None
+                # 3. FINANCE
+                total_funding = clean_money(row.get("Total Funding Amount"))
+                rev_raw = row.get("Estimated Revenue Range", "")
+                valuation = clean_money(row.get("Last Funding Amount")) # On prend le dernier montant si valuation absente
 
-                    # 4. DATES (Extraction d'année stricte)
-                    founded_year = extract_year(row.get("Founded Date"))
-                    last_funding_year = extract_year(row.get("Last Funding Date"))
+                # 4. DATES (Fix Founded Year)
+                founded_year = extract_year(row.get("Founded Date"))
+                last_funding_year = extract_year(row.get("Last Funding Date"))
 
-                    # 5. INDUSTRIES (Déjà propre grâce au DictReader)
-                    industries_list = self.parse_industries(row.get("Industries", ""))
+                # 5. INDUSTRIES
+                industries_list = self.parse_industries(row.get("Industries", ""))
 
-                    entity = Entity(
-                        source_id=self.source_id,
-                        name=name,
-                        type="company",
-                        website=row.get("Website"),
-                        city=city,
-                        country_code=country_code,
-                        operating_status=row.get("Operating Status", "Active"),
-                        total_funding=total_funding,
-                        valuation=valuation,
-                        founded_date=founded_year,
-                        last_funding_date=last_funding_year,
-                        industries=industries_list,
-                        is_ai_related=True,
-                        raw={"row": row, "_extraction_source": "crunchbase_v8_final_stable"}
-                    )
-                    
-                    if self._safe_add_entity(entity): 
-                        count += 1
+                entity = Entity(
+                    source_id=self.source_id,
+                    name=name,
+                    type="company",
+                    website=row.get("Website"),
+                    city=city,
+                    country_code=country_code,
+                    operating_status=row.get("Operating Status", "Active"),
+                    total_funding=total_funding,
+                    valuation=valuation,
+                    estimated_revenue=rev_raw,
+                    founded_date=founded_year,
+                    last_funding_date=last_funding_year,
+                    industries=industries_list,
+                    is_ai_related=True,
+                    raw={"row": row, "_extraction_source": "crunchbase_v9_stable"}
+                )
+                
+                if self._safe_add_entity(entity): 
+                    self.session.flush()
+                    count += 1
 
-            self.session.commit()
-            return count
-'''
+                # --- GESTION DES INVESTISSEURS (SÉCURISÉE) ---
+                    investors_raw = row.get("Lead Investors")
+                    if investors_raw and investors_raw != "—":
+                        # On sépare par point-virgule
+                        investors_list = [i.strip() for i in investors_raw.split(";") if i.strip()]
+                        inv_links = []
+                        for inv_name in investors_list:
+                            # SÉCURITÉ : On ignore les investisseurs qui ressemblent à des nombres (brevets décalés)
+                            if any(char.isdigit() for char in inv_name) or len(inv_name) < 3:
+                                continue
+
+                            inv_ent = self.session.exec(select(Entity).where(Entity.name == inv_name)).first()
+                            if not inv_ent:
+                                inv_ent = Entity(
+                                    source_id=self.source_id, 
+                                    name=inv_name, 
+                                    type="investor", 
+                                    is_ai_related=True
+                                )
+                                self.session.add(inv_ent)
+                                self.session.flush()
+                            inv_links.append({"id": inv_ent.id, "name": inv_ent.name})
+                        entity.raw["investor_links"] = inv_links
+
+                    # --- GESTION DES FONDATEURS ---
+                    founders_raw = row.get("Founders")
+                    if founders_raw:
+                        f_list = [f.strip() for f in founders_raw.split(";") if f.strip()]
+                        for f_name in f_list:
+                            # --- FILTRE ANTI-DÉCALAGE ---
+                            # On ignore les noms qui contiennent des chiffres (ex: 251-500)
+                            # ou qui sont purement numériques.
+                            if any(char.isdigit() for char in f_name) or len(f_name) < 3:
+                                continue
+                            
+                            p_slug = f"person_{f_name.lower().replace(' ', '_')}"
+                            
+                            person = self.session.exec(
+                                select(Author).where(Author.external_id == p_slug)
+                            ).first()
+                            
+                            if not person:
+                                person = Author(
+                                    full_name=f_name, 
+                                    external_id=p_slug,
+                                    publication_count=0
+                                )
+                                self.session.add(person)
+                                self.session.flush()
+                            
+                            # CORRECTION ICI : Ajout de author_external_id=p_slug
+                            self.session.add(Affiliation(
+                                author_id=person.id, 
+                                author_external_id=p_slug, # <--- INDISPENSABLE
+                                entity_id=entity.id, 
+                                role="Founder",
+                                source_name="crunchbase_ingestion"
+                            ))
+
+        self.session.commit()
+        return count
