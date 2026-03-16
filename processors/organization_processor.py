@@ -280,12 +280,17 @@ class OrganizationProcessor:
                     self.session.flush()
                     count += 1
 
-                    # --- GESTION DES INVESTISSEURS (Table Entity) ---
+                # --- GESTION DES INVESTISSEURS (SÉCURISÉE) ---
                     investors_raw = row.get("Lead Investors")
                     if investors_raw and investors_raw != "—":
+                        # On sépare par point-virgule
                         investors_list = [i.strip() for i in investors_raw.split(";") if i.strip()]
                         inv_links = []
                         for inv_name in investors_list:
+                            # SÉCURITÉ : On ignore les investisseurs qui ressemblent à des nombres (brevets décalés)
+                            if any(char.isdigit() for char in inv_name) or len(inv_name) < 3:
+                                continue
+
                             inv_ent = self.session.exec(select(Entity).where(Entity.name == inv_name)).first()
                             if not inv_ent:
                                 inv_ent = Entity(
@@ -299,11 +304,17 @@ class OrganizationProcessor:
                             inv_links.append({"id": inv_ent.id, "name": inv_ent.name})
                         entity.raw["investor_links"] = inv_links
 
-                    # --- GESTION DES FONDATEURS (Table Author) ---
+                    # --- GESTION DES FONDATEURS ---
                     founders_raw = row.get("Founders")
                     if founders_raw:
                         f_list = [f.strip() for f in founders_raw.split(";") if f.strip()]
                         for f_name in f_list:
+                            # --- FILTRE ANTI-DÉCALAGE ---
+                            # On ignore les noms qui contiennent des chiffres (ex: 251-500)
+                            # ou qui sont purement numériques.
+                            if any(char.isdigit() for char in f_name) or len(f_name) < 3:
+                                continue
+                            
                             p_slug = f"person_{f_name.lower().replace(' ', '_')}"
                             
                             person = self.session.exec(
