@@ -11,7 +11,7 @@ import time
 import unicodedata
 
 GRAPHDB_URL = "http://localhost:7200"
-REPO_ID = "fil-rougev1"
+REPO_ID = "fil-rouge-final"
 DB_PATH = Path(__file__).parent.parent / "database.db"
 PREFIX = "http://www.semanticweb.org/s2b/ontologie#"
 LIMIT = 100000000

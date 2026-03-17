@@ -7,7 +7,7 @@ import os
 import requests
 
 GRAPHDB_URL = "http://localhost:7200"
-REPO_ID = "fil-rougev1"
+REPO_ID = "fil-rouge-final"
 
 def create_repository():
     # Envoyer le fichier TTL en multipart/form-data

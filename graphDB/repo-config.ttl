@@ -5,7 +5,7 @@
 @prefix graphdb: <http://www.ontotext.com/config/graphdb#> .
 
 [] a rep:Repository ;
-    rep:repositoryID "fil-rougev1" ;
+    rep:repositoryID "fil-rouge-final" ;
     rdfs:label "Fil Rouge" ;
     rep:repositoryImpl [
         rep:repositoryType "graphdb:SailRepository" ;

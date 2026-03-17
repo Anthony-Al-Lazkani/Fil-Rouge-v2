@@ -34,6 +34,17 @@ MANUAL_MAP = {
     "turkiye": "Turkiye",
     "guadeloupe": "France",
     "reunion": "France",
+    "ire": "Ireland",
+    "jap": "Japan",
+    "nig": "Nigeria",
+    "por": "Portugal",
+    "sou": "South Korea",
+    "spa": "Spain",
+    "swi": "Switzerland",
+    "": None,
+    "-": None,
+    "the": "Netherlands",
+    "uni": "United Kingdom",
 }
 
 
