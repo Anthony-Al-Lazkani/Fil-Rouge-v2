@@ -22,6 +22,10 @@ uv run scripts/pipeline.py
 --query "machine learning" 
 --limit 100
 
+# Enrichir la base avec les scripts de peuplement:
+uv run ./scripts/link_data.py
+uv run ./scripts/link_organizations.py
+
 
 ## Architecture du Système
 Le projet est articulé autour de deux grands piliers:
@@ -47,6 +51,18 @@ Structure de données unifiée utilisant SQLModel :
 * **Source** : Traçabilité de l'origine des données.
 * **Author** : pour lister les auteurs
 * **Affiliation** : pour faire des liens permettant la génération ultérieure de triplets
+
+### D. Pipeline de Consolidation Relationnelle
+Une fois les données injectées, le système exécute un pipeline coordonné (scripts/normalisation.py) qui transforme les données brutes en un graphe de connaissances cohérent. 
+Ce pipeline orchestre quatre étapes clés :
+1. **Normalisation géographique** : Standardise les noms de pays et codes ISO (ex: "France", "FR", "FRA" => "France").
+2. **Linker Flexible (Auteurs)** : Identifie les auteurs et crée les liens `Auteur <-> ResearchItem`. Il normalise les identités et met à jour les compteurs de publications.
+3. **Org Linker (Organisations)** : Enrichit les liens existants en identifiant les `Entity` (Universités, Entreprises) grâce aux pivots ROR et aux domaines d'emails institutionnels (+une recherche "plein texte" sécurisée pour éviter le bruit sémantique.)
+4. **Matching Entrepreneur** : Croise les auteurs académiques avec les fondateurs de Crunchbase (clé Founders) et les dirigeants de ScanR (clé leaders).
+    * **Réconciliation d'Identité** : Analyse de similarité entre les auteurs de publications et les fondateurs de startups (>80%) présents dans la base.
+    * **Inférence de Rôle** : Marque les profils comme `:Entrepreneur` dans l'ontologie.
+    * **Analyse de Transfert** : Permet de requêter les chercheurs ayant valorisé leurs travaux via la création d'entreprise.
+
 
 ### 2. La partie EXPLOITATION DANS GRAPHDB via une ONTOLOGIE
 Cette seconde phase transforme les données relationnelles en un graphe de connaissances sémantique permettant des requêtes d'inférence complexes.
