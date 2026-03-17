@@ -9,7 +9,7 @@ import os
 import requests
 
 GRAPHDB_URL = "http://localhost:7200"
-REPO_ID = "fil-rougev1"
+REPO_ID = "fil-rouge-final"
 
 def load_file(filepath):
     with open(filepath, "rb") as f:

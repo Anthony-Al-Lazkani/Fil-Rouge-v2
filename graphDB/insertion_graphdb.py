@@ -11,7 +11,7 @@ import time
 import unicodedata
 
 GRAPHDB_URL = "http://localhost:7200"
-REPO_ID = "fil-rougev1"
+REPO_ID = "fil-rouge-final"
 DB_PATH = Path(__file__).parent.parent / "database.db"
 PREFIX = "http://www.semanticweb.org/s2b/ontologie#"
 LIMIT = 100000000
@@ -110,7 +110,7 @@ def peupler_entites():
 
     for i, r in enumerate(rows, 1):
         uri = clean_uri(r["external_id"] or r["ror"] or f"entity_{r['id']}")
-        nom = escape(r["display_name"] or r["name"])
+        nom = escape(r["display_name"] or r["name"] or "Inconnu")
         etype = (r["type"] or "").lower()
         country = r["country_code"] or ""
         city = r["city"] or ""
@@ -152,16 +152,18 @@ def peupler_entites():
             acronyms_list = []
 
         # Classe ontologique
-        if etype in ("company", "startup"):
-            classe = "Entreprise"
+        if etype == "facility, education":
+            classe = ["Laboratoire", "Université"]
+        elif etype in ("company", "startup", "entreprise"):
+            classe = ["Entreprise"]
         elif etype == "education":
-            classe = "Universite"
+            classe = ["Université"]
         elif etype == "facility":
-            classe = "Laboratoire"
-        elif etype in ("government", "nonprofit", "archive", "funder"):
-            classe = "OrganisationFacilitatrice"
+            classe = ["Laboratoire"]
+        elif etype in ("government", "nonprofit", "investor", "archive", "funder"):
+            classe = ["OrganisationFacilitatrice"]
         else:
-            classe = "Organisation"
+            classe = ["Organisation"]
 
         # URI pays : remplacer espaces par underscore
         pays_uri = clean_uri(country.replace(" ", "_")) if country else None
@@ -204,10 +206,11 @@ def peupler_entites():
         for acr in acronyms_list:
             extras += f':{uri} :acronyme "{escape(str(acr))}" .\n'
 
+        types_str = ", ".join(f":{c}" for c in classe)
         query = f"""
         DELETE WHERE {{ :{uri} ?p ?o }} ;
         INSERT DATA {{
-            :{uri} a :{classe} ;
+            :{uri} a {types_str} ;
                 :aPourNomOrganisation "{nom}" ;
                 :typeOrganisation "{escape(etype)}" .
             {f':{uri} :estLocaliseEn :pays_{pays_uri} . :pays_{pays_uri} a :Pays ; :codePays "{escape(country)}" .' if pays_uri else ""}
@@ -224,9 +227,9 @@ def peupler_entites():
     conn.close()
     print(f"Entites : {ok}/{total}")
 
-# ARTICLES (table: researchitem)
+# TravailDeRecherche+Brevet (table: researchitem)
 
-def peupler_articles():
+def peupler_researchitem():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(f"SELECT * FROM researchitem LIMIT {LIMIT}").fetchall()
@@ -297,10 +300,15 @@ def peupler_articles():
             extras += f':{uri} :aPourDomaine :{tp_uri} .\n'
             extras += f':{tp_uri} a :Domaine ; :aPourNameEN "{escape(str(tp))}" .\n'
 
+        if item_type == "patent":
+            classe = "Brevet"
+        else:
+            classe = "TravailDeRecherche"
+
         query = f"""
         DELETE {{ :{uri} :titre ?old ; :nbCitations ?oldCit }}
         INSERT {{
-            :{uri} a :TravailDeRecherche ;
+            :{uri} a :{classe} ;
                 :titre "{titre}" ;
                 :nbCitations {citations} ;
                 :aPourIdRessource "{escape(r['external_id'] or '')}" .
@@ -326,12 +334,14 @@ def peupler_affiliations():
 
     query_sql = f"""
         SELECT
+            a.entity_id,
             a.author_external_id,
             a.research_item_doi,
             a.entity_ror,
             a.role,
             a.source_name,
             r.external_id AS research_external_id,
+            r.type AS research_type,
             e.external_id AS entity_external_id,
             e.ror AS entity_ror_resolved
         FROM affiliation a
@@ -348,25 +358,39 @@ def peupler_affiliations():
         article_uri = clean_uri(r["research_external_id"]) if r["research_external_id"] else None
         entity_uri = clean_uri(
             r["entity_external_id"] or r["entity_ror_resolved"] or r["entity_ror"]
-        ) if (r["entity_external_id"] or r["entity_ror_resolved"] or r["entity_ror"]) else None
+        ) if (r["entity_external_id"] or r["entity_ror_resolved"] or r["entity_ror"]) else f"entity_{r['entity_id']}" if \
+        r["entity_id"] else None
 
-        role = escape(r["role"] or "")
+        role = (r["role"] or "").strip().lower()
+        research_type = (r["research_type"] or "").strip().lower()
 
-        triples = ""
+        triples = []
 
-        # Auteur → Article
-        if article_uri:
-            triples += f":{auteur_uri} :aEcrit :{article_uri} .\n"
-            triples += f":{article_uri} :ecritPar :{auteur_uri} .\n"
-
-        # Auteur → Entité
+        # --- Affiliation : toujours si entité ---
         if entity_uri:
-            triples += f":{auteur_uri} :estAffilieA :{entity_uri} .\n"
+            triples.append(f":{auteur_uri} :estAffilieA :{entity_uri} .")
+
+        # --- Rôles ---
+        if role == "founder" and entity_uri:
+            triples.append(f":{auteur_uri} :aFonde :{entity_uri} .")
+        elif role == "leader" and entity_uri:
+            triples.append(f":{auteur_uri} :dirige :{entity_uri} .")
+
+        # --- Research items (indépendant du rôle) ---
+        if article_uri:
+            if research_type in ("brevet", "patent"):
+                triples.append(f":{article_uri} :estDeposePar :{auteur_uri} .")
+                if entity_uri:
+                    triples.append(f":{article_uri} :estDeposePar :{entity_uri} .")
+            else:
+                triples.append(f":{auteur_uri} :aEcrit :{article_uri} .")
+                triples.append(f":{article_uri} :estEcritPar :{auteur_uri} .")
 
         if not triples:
             continue
 
-        sparql = f"INSERT DATA {{ {triples} }}"
+        sparql = f"INSERT DATA {{ {chr(10).join(triples)} }}"
+
         if sparql_update(sparql):
             ok += 1
         if i % 10 == 0:
@@ -374,7 +398,6 @@ def peupler_affiliations():
             time.sleep(0.1)
 
     conn.close()
-    print(f"Affiliations : {ok}/{total}")
 
 
 def compter_triples():
@@ -401,7 +424,7 @@ if __name__ == "__main__":
     print("✅ Entités OK\n")
 
     print("ResearchItems...")
-    peupler_articles()
+    peupler_researchitem()
     print("✅ ResearchItems OK\n")
 
     print("Affiliations...")
