@@ -25,6 +25,7 @@ from sqlmodel import Session, create_engine, select
 from database.initialize import SQLITEURL, connect_args
 from models.author import Author
 from models.entity import Entity
+from models.affiliation import Affiliation
 import json
 
 
@@ -173,7 +174,7 @@ def similarity_score(name1: str, name2: str) -> float:
 
 
 def match_authors_to_founders(
-    threshold: float = 70, verbose: bool = False
+    threshold: float = 90, verbose: bool = False
 ) -> List[Dict]:
     """Match authors to founders using fuzzy matching."""
     engine = create_engine(SQLITEURL, connect_args=connect_args)
@@ -183,30 +184,47 @@ def match_authors_to_founders(
         authors = session.exec(select(Author)).all()
         print(f"Loaded {len(authors)} authors")
 
-        # Get all entities with founders
-        entities = session.exec(select(Entity).where(Entity.founders != None)).all()
+        # 1. On charge toutes les entités (pas de filtre .where(Entity.founders) qui plante)
+        entities = session.exec(select(Entity)).all()
 
+        # --- BLOC 1 : CRUNCHBASE
         # Build founder list with company info
         founders = []
         for entity in entities:
-            if entity.founders:
-                try:
-                    founder_list = (
-                        json.loads(entity.founders)
-                        if isinstance(entity.founders, str)
-                        else entity.founders
-                    )
-                    for founder in founder_list:
-                        founders.append(
-                            {
-                                "name": founder,
-                                "company": entity.name,
-                                "country": entity.country,
-                                "is_ai_related": entity.is_ai_related,
-                            }
-                        )
-                except:
-                    pass
+            raw_data = entity.raw or {}
+            # Crunchbase stocke dans 'row' -> 'Founders'
+            row = raw_data.get("row", {})
+            founders_str = row.get("Founders") 
+
+            if founders_str and isinstance(founders_str, str):
+                # On sépare par point-virgule : "Dario Amodei; Jack Clark" -> ["Dario Amodei", "Jack Clark"]
+                founder_list = [f.strip() for f in founders_str.split(";") if f.strip()]
+                
+                for f_name in founder_list:
+                    founders.append({
+                        "name": f_name,
+                        "company": entity.name,
+                        "country": entity.country_code,
+                        "is_ai_related": getattr(entity, "is_ai_related", False),
+                    })
+
+
+            # --- BLOC 2 : SCANR (avec les leaders) ---
+            leaders = raw_data.get("leaders")
+            if leaders and isinstance(leaders, list):
+                for leader in leaders:
+                    # ScanR structure souvent ainsi : {'firstName': 'Jean', 'lastName': 'Dupont'}
+                    first = leader.get("firstName", "").strip()
+                    last = leader.get("lastName", "").strip()
+                    f_name = f"{first} {last}".strip()
+                    
+                    if len(f_name) > 3:
+                        founders.append({
+                            "name": f_name,
+                            "company": entity.name,
+                            "country": entity.country_code,
+                            "is_ai_related": getattr(entity, "is_ai_related", False),
+                        })
 
         print(f"Loaded {len(founders)} founders\n")
 
@@ -219,55 +237,54 @@ def match_authors_to_founders(
 
         print(f"Indexed {len(founder_by_lastname)} unique last names\n")
 
-        # Find matches
         matches = []
+        session.autoflush = False 
+
+        print(f"Starting matching for {len(authors)} authors...")
 
         for author in authors:
             author_name = author.full_name
-            if not author_name or len(normalize_name(author_name)) < 3:
-                continue
+            if not author_name: continue
 
             a_last, a_first = get_name_parts(author_name)
+            if not a_last: continue
 
-            if not a_last:
-                continue
-
-            # Get potential matches by last name
+            # 1. On ne récupère QUE les fondateurs ayant EXACTEMENT le même nom de famille
+            # C'est un accès dictionnaire O(1), quasi instantané.
             potential_founders = founder_by_lastname.get(a_last, [])
 
-            # Also check similar last names
-            for last_name in founder_by_lastname:
-                if (
-                    last_name != a_last
-                    and SequenceMatcher(None, a_last, last_name).ratio() > 0.8
-                ):
-                    potential_founders.extend(founder_by_lastname[last_name])
-
-            # Check each potential match
             for founder in potential_founders:
-                # Quick filter
-                if not quick_filter(author_name, founder["name"]):
-                    continue
-
+                # 2. On affine avec le prénom ou le score global
                 score = similarity_score(author_name, founder["name"])
-
+                
                 if score >= threshold:
-                    matches.append(
-                        {
-                            "author": author_name,
-                            "founder": founder["name"],
-                            "company": founder["company"],
-                            "score": round(score, 2),
-                            "country": founder["country"],
-                            "is_ai_related": founder.get("is_ai_related", False),
-                        }
-                    )
-
-                    if verbose:
-                        print(
-                            f"  Match: {author_name} <-> {founder['name']} ({score:.1f}%)"
+                    # On récupère l'ID de l'entité (cache cette requête si possible, ou fais-le à la fin)
+                    target_entity = session.exec(
+                        select(Entity).where(Entity.name == founder["company"])
+                    ).first()
+                    
+                    if target_entity:
+                    # 1. ON GARDE : Enregistrement en base de données
+                        new_link = Affiliation(
+                            author_external_id=author.external_id,
+                            entity_id=target_entity.id,
+                            role="founder",
+                            source_name=f"match_crunchbase_{int(score)}"
                         )
+                        session.add(new_link)
+                    
+                    # 2. ON MODIFIE : Envoi du dictionnaire complet pour l'affichage final
+                    matches.append({
+                        "author": author_name,
+                        "founder": founder["name"],
+                        "company": founder["company"],
+                        "score": round(score, 2), # C'est cette clé qui manquait !
+                        "country": founder.get("country"),
+                        "is_ai_related": founder.get("is_ai_related", False),
+                    })
 
+        print("Finalizing database changes...")
+        session.commit()
         return matches
 
 
@@ -313,7 +330,7 @@ def print_matches(matches: List[Dict], limit: Optional[int] = None):
 def main():
     parser = argparse.ArgumentParser(description="Match authors to startup founders")
     parser.add_argument(
-        "--threshold", type=float, default=70, help="Min similarity (0-100)"
+        "--threshold", type=float, default=80, help="Min similarity (0-100)"
     )
     parser.add_argument("--verbose", action="store_true", help="Print details")
     parser.add_argument("--limit", type=int, default=None, help="Limit results")

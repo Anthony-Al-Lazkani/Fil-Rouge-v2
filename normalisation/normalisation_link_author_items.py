@@ -82,7 +82,8 @@ def run_linker():
                             research_item_id=item.id,
                             author_external_id=target_slug,
                             source_name="linker_flexible",
-                            research_item_doi=item.doi
+                            research_item_doi=item.doi,
+                            role="author"  # On définit le rôle ici
                         )
                         session.add(new_aff)
                         created += 1
@@ -90,5 +91,31 @@ def run_linker():
         session.commit()
         print(f"=== TERMINÉ : {created} liens créés. ===")
 
+
+def update_author_stats(session: Session):
+    """Calcule le nombre réel de publications par auteur et met à jour la table Author."""
+    print("=== MISE À JOUR DES COMPTEURS (PUBLICATION_COUNT) ===")
+    authors = session.exec(select(Author)).all()
+    updated = 0
+
+    for author in authors:
+        # On compte les entrées dans la table Affiliation pour cet auteur
+        statement = select(Affiliation).where(Affiliation.author_external_id == author.external_id)
+        count = len(session.exec(statement).all())
+        
+        if author.publication_count != count:
+            author.publication_count = count
+            session.add(author)
+            updated += 1
+            
+    session.commit()
+    print(f"=== STATISTIQUES : {updated} auteurs mis à jour. ===")
+
+
 if __name__ == "__main__":
+    # 1. Création des liens (ta fonction run_linker actuelle modifiée)
     run_linker()
+    
+    # 2. Mise à jour des compteurs
+    with Session(engine) as session:
+        update_author_stats(session)
