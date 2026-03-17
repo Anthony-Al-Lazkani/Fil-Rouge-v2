@@ -86,10 +86,10 @@ def main():
             data = crawl_openalex_institutions()
             total_processed += run_source("openalex_inst", session, data, OpenAlexInstitutionProcessor, "process_institutions")
 
-       # 3. ArXiv / contrôle sur le volume pour les 4 catégories et sur l'année de début des recherches:
+       # 3. ArXiv / max_results pour chaque catégorie d'articles / from_year: récupère de 2026 jusqu'à "from_year"
         if s in ["arxiv", "all"]:
             print("=== Running ArXiv Pipeline ===")
-            data = crawl_ai_articles(max_results_per_cat=100, from_year=2025) 
+            data = crawl_ai_articles(max_results_per_cat=100, from_year=2022) 
             total_processed += run_source("arxiv", session, data, ArxivProcessor, "process_articles")
 
         # 4. Semantic Scholar (CLASSE avec arguments)
@@ -104,12 +104,12 @@ def main():
                 total_processed += count
                 print(f"Processed {count} items\n")
 
-        # 5. HAL (CLASSE avec arguments)
+        # 5. HAL (CLASSE avec arguments) / contrôle sur la date de début et le max / attention HAL fournit les articles par ordre de pertinence et non par date
         if s in ["hal", "all"]:
             print("=== Running HAL Pipeline ===")
             try:
                 crawler = HALCrawler()
-                data = crawler.fetch_ai_publications(query="intelligence artificielle", start_year=2024, max_results=10)
+                data = crawler.fetch_ai_publications(query="intelligence artificielle", start_year=2022, max_results=10)
                 total_processed += run_source("hal", session, data, HalProcessor, "process_records")
             except Exception as e:
                 print(f"[ERROR] HAL failed: {e}")
@@ -120,19 +120,19 @@ def main():
             data = crawl_scanr_ai()
             total_processed += run_source("scanr", session, data, ScanRProcessor, "process_organizations")
 
-        # 7. INPI / EPO
+        # 7. INPI / EPO / contrôle sur la date la plus ancienne et sur le nombre de résultats max / attention, ne fonctionne que pendant 20min
         if s in ["inpi", 'epo', "all"]:
             print("=== Running INPI / EPO Pipeline ===")
             client_id = os.getenv("EPO_CLIENT_ID")
             client_secret = os.getenv("EPO_CLIENT_SECRET")
             crawler = InpiCrawler(client_id, client_secret)
-            data = crawler.fetch_ai_patents(max_results=10)
+            data = crawler.fetch_ai_patents(query_text="artificial intelligence", max_results=20, from_year=2022)
             if data:
                 proc = InpiProcessor(session)
                 count = proc.process_patents(data)
                 total_processed += count
                 print(f"Processed {count} items\n")
-
+        
           
         # 8. OpenCorporates
         if s in ["open_corporates", "all"]:

@@ -15,11 +15,6 @@ Variables de contrôle :
 - rows : Nombre de publications demandées par requête (pagination).
 - pause : Temps de latence (secondes) pour respecter la courtoisie envers l'API.
 - fl (Field List) : Liste des champs extraits (halId, title, date, doi, structures, auteurs, keywords).
-
-Fonctionnement :
-La méthode 'fetch_ai_publications' exécute une requête Solr sur le champ 'q', 
-filtre les résultats par année de production et présence de DOI, puis itère 
-par pagination jusqu'à atteindre le quota 'max_results'.
 """
 
 import requests
@@ -33,24 +28,25 @@ class HALCrawler:
         self.pause = pause
 
     def fetch_ai_publications(self, query: str, start_year: int, max_results: int = 100):
-        """Récupère les publications HAL pour une requête donnée."""
+        """Récupère les publications HAL pour une requête donnée (passée en paramètre dans le pipeline)."""
         results = []
         start = 0
         
         while len(results) < max_results:
             params = {
-                "q": query,
-                "fq": [f"producedDateY_i:[{start_year} TO *]", "doiId_s:[* TO *]"],
-                "rows": min(self.rows, max_results - len(results)),
+                "q": query, #passée en argument dans le pipeline
+                "fq": [f"producedDateY_i:[{start_year} TO *]", "doiId_s:[* TO *]"], #passé en argument dans le pipeline
+                "rows": min(self.rows, max_results - len(results)), #passé en argument dans le pipeline
                 "start": start,
                 "wt": "json",
                 "fl": "halId_s,title_s,producedDateY_i,doiId_s,docType_s,structId_i,structName_s,structType_s,structCountry_s,authFullName_s,keyword_s,domain_s"
             }
             
             response = requests.get(self.BASE_URL, params=params)
+            
+            #gestion des erreurs
             response.raise_for_status()
             docs = response.json().get("response", {}).get("docs", [])
-            
             if not docs: break
             
             results.extend(docs)
