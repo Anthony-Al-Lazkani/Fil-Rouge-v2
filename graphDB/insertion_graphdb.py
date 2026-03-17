@@ -110,7 +110,7 @@ def peupler_entites():
 
     for i, r in enumerate(rows, 1):
         uri = clean_uri(r["external_id"] or r["ror"] or f"entity_{r['id']}")
-        nom = escape(r["display_name"] or r["name"])
+        nom = escape(r["display_name"] or r["name"] or "Inconnu")
         etype = (r["type"] or "").lower()
         country = r["country_code"] or ""
         city = r["city"] or ""
@@ -152,16 +152,18 @@ def peupler_entites():
             acronyms_list = []
 
         # Classe ontologique
-        if etype in ("company", "startup"):
-            classe = "Entreprise"
+        if etype == "facility, education":
+            classe = ["Laboratoire", "Université"]
+        elif etype in ("company", "startup", "entreprise"):
+            classe = ["Entreprise"]
         elif etype == "education":
-            classe = "Universite"
+            classe = ["Université"]
         elif etype == "facility":
-            classe = "Laboratoire"
-        elif etype in ("government", "nonprofit", "archive", "funder"):
-            classe = "OrganisationFacilitatrice"
+            classe = ["Laboratoire"]
+        elif etype in ("government", "nonprofit", "investor", "archive", "funder"):
+            classe = ["OrganisationFacilitatrice"]
         else:
-            classe = "Organisation"
+            classe = ["Organisation"]
 
         # URI pays : remplacer espaces par underscore
         pays_uri = clean_uri(country.replace(" ", "_")) if country else None
@@ -204,10 +206,11 @@ def peupler_entites():
         for acr in acronyms_list:
             extras += f':{uri} :acronyme "{escape(str(acr))}" .\n'
 
+        types_str = ", ".join(f":{c}" for c in classe)
         query = f"""
         DELETE WHERE {{ :{uri} ?p ?o }} ;
         INSERT DATA {{
-            :{uri} a :{classe} ;
+            :{uri} a {types_str} ;
                 :aPourNomOrganisation "{nom}" ;
                 :typeOrganisation "{escape(etype)}" .
             {f':{uri} :estLocaliseEn :pays_{pays_uri} . :pays_{pays_uri} a :Pays ; :codePays "{escape(country)}" .' if pays_uri else ""}
