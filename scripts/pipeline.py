@@ -75,15 +75,15 @@ def main():
                 print("Dossier /data non trouvé. Skip local ingestion.\n")
 
         # 1. OpenAlex
-        if s in ["openalex", 'open_alex', "all"]:
+        if s in ["openalex", "all"]:
             print("=== Running OpenAlex Pipeline ===")
-            data = crawl_openalex_ai()
+            data = crawl_openalex_ai(max_articles=50, from_year=2024, to_year=2026)
             total_processed += run_source("openalex", session, data, OpenAlexProcessor, "process_works")
     
-        # 2. OpenAlex Institutions
+        # 2. OpenAlex Institutions / augmentation de la limite ici
         if s in ["openalex_inst", 'open_alex_institution', "all"]:
             print("=== Running OpenAlex Institutions Pipeline ===")
-            data = crawl_openalex_institutions()
+            data = crawl_openalex_institutions(limit=500)
             total_processed += run_source("openalex_inst", session, data, OpenAlexInstitutionProcessor, "process_institutions")
 
        # 3. ArXiv / max_results pour chaque catégorie d'articles / from_year: récupère de 2026 jusqu'à "from_year"
@@ -114,10 +114,10 @@ def main():
             except Exception as e:
                 print(f"[ERROR] HAL failed: {e}")
 
-        # 6. ScanR
+        # 6. ScanR / contrôle de la limite ici
         if s in ["scanr", "all"]:
             print("=== Running ScanR Pipeline ===")
-            data = crawl_scanr_ai()
+            data = crawl_scanr_ai(query="intelligence artificielle", limit=50)
             total_processed += run_source("scanr", session, data, ScanRProcessor, "process_organizations")
 
         # 7. INPI / EPO / contrôle sur la date la plus ancienne et sur le nombre de résultats max / attention, ne fonctionne que pendant 20min
@@ -134,10 +134,10 @@ def main():
                 print(f"Processed {count} items\n")
         
           
-        # 8. OpenCorporates
+        # 8. OpenCorporates / pas de contrôle sur l'année ici, seulement sur le volume
         if s in ["open_corporates", "all"]:
             print("=== Running Open Corporates Pipeline ===")
-            data = crawl_opencorporates_ai()
+            data = crawl_opencorporates_ai(limit=50, query="artificial intelligence")
             total_processed += run_source("open_corporates", session, data, OpenCorporatesProcessor, "process_companies")
 
         
