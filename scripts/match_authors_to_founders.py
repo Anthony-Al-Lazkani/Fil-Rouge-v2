@@ -25,6 +25,7 @@ from sqlmodel import Session, create_engine, select
 from database.initialize import SQLITEURL, connect_args
 from models.author import Author
 from models.entity import Entity
+from models.affiliation import Affiliation
 import json
 
 

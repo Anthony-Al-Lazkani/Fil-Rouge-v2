@@ -22,6 +22,10 @@ uv run scripts/pipeline.py
 --query "machine learning" 
 --limit 100
 
+# Enrichir la base avec les scripts de peuplement:
+uv run ./scripts/link_data.py
+uv run ./scripts/link_organizations.py
+
 
 ## Architecture du Système
 Le projet est articulé autour de deux grands piliers:
@@ -47,6 +51,17 @@ Structure de données unifiée utilisant SQLModel :
 * **Source** : Traçabilité de l'origine des données.
 * **Author** : pour lister les auteurs
 * **Affiliation** : pour faire des liens permettant la génération ultérieure de triplets
+
+### D. Pipeline de Consolidation Relationnelle
+Une fois les données injectées, deux modules spécialisés finalisent le graphe :
+1. **Linker Flexible (Auteurs)** : Identifie les auteurs et crée les liens `Auteur <-> ResearchItem`. Il normalise les identités et met à jour les compteurs de publications.
+2. **Org Linker (Organisations)** : Enrichit les liens existants en identifiant les `Entity` (Universités, Entreprises) grâce aux pivots ROR et aux domaines d'emails institutionnels.
+
+### E. Matcher Entrepreneur (Science-to-Business)
+Le module `match_authors_to_founders.py` identifie les trajectoires hybrides :
+* **Réconciliation d'Identité** : Analyse de similarité entre les auteurs de publications et les fondateurs de startups présents dans la base.
+* **Inférence de Rôle** : Marque les profils comme `:Entrepreneur` dans l'ontologie.
+* **Analyse de Transfert** : Permet de requêter les chercheurs ayant valorisé leurs travaux via la création d'entreprise.
 
 ### 2. La partie EXPLOITATION DANS GRAPHDB via une ONTOLOGIE
 Cette seconde phase transforme les données relationnelles en un graphe de connaissances sémantique permettant des requêtes d'inférence complexes.
