@@ -17,14 +17,13 @@ uv run reset_db.py
 # Lancer la collecte totale (limites par défaut)
 uv run scripts/pipeline.py
 
-# Arguments possibles
+## Arguments possibles
 --source (arxiv/hal/inpi/open_alex/open_alex_institution/open_corporates/scanr/s2) 
 --query "machine learning" 
 --limit 100
 
 # Enrichir la base avec les scripts de peuplement:
-uv run ./scripts/link_data.py
-uv run ./scripts/link_organizations.py
+uv run ./scripts/pipeline_normalization.py
 
 
 ## Architecture du Système
