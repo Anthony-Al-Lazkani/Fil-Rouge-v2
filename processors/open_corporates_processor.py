@@ -63,20 +63,36 @@ class OpenCorporatesProcessor:
             # 5. Acronymes
             alt_names = [n.get("company_name") for n in (raw.get("alternative_names") or []) if n.get("company_name")]
 
+
+            # 6. Normalisation du type (On force 'company' pour la cohérence)
+            legal_form = raw.get("company_type", "company")
+            normalized_type = "company" 
+
+            # 7. Normalisation des industries (On injecte IA par défaut)
+            # On peut aussi combiner avec la description si elle existe
+            inferred_industries = ["Intelligence Artificielle"]
+            if description:
+                inferred_industries.append(description)
+
+
             # --- MAPPING ---
             new_entity = Entity(
                 source_id=self.source_id,
                 external_id=str(ext_id),
                 name=raw.get("name"),
                 acronyms=alt_names,
-                type=raw.get("company_type", "company"),
-                country_code=str(raw.get("jurisdiction_code", "UN")).upper(),
+                type=normalized_type, # <--- Toujours 'company'
+                country_code=str(raw.get("jurisdiction_code", "UN")).upper()[:2], # Limite à 2 chars,
                 city=city,
                 founded_year=founded_year,
                 operating_status=operating_status,
+                industries=inferred_industries, # <--- Plus de champ vide
                 description=description,
                 is_ai_related=True,
-                raw=raw
+                raw={
+                    **raw,
+                    "_original_legal_type": legal_form # On garde le statut précis ici au cas où
+                }
             )
             
             self.session.add(new_entity)
