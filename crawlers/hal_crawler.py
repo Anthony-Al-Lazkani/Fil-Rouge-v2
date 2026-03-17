@@ -1,7 +1,27 @@
+
 """
-Crawler HAL spécialisé dans l'IA.
-Récupère les données depuis l'API et les prépare pour le processeur.
+Crawler pour l'extraction automatisée de publications scientifiques depuis l'API HAL.
+
+Ce script interroge l'entrepôt national HAL pour récupérer les travaux de recherche 
+français et internationaux liés à l'IA, avec un focus sur les métadonnées de structures.
+
+Limitations Techniques :
+- DOI : Présent la plupart du temps. Le filtre 'doiId_s:[* TO *]' est appliqué par défaut 
+  pour garantir l'interopérabilité avec les autres sources du pipeline.
+- Affiliations : HAL fournit des identifiants de structures (structId_i) et des noms 
+  précis, ce qui facilite la liaison avec la table Entity.
+
+Variables de contrôle :
+- rows : Nombre de publications demandées par requête (pagination).
+- pause : Temps de latence (secondes) pour respecter la courtoisie envers l'API.
+- fl (Field List) : Liste des champs extraits (halId, title, date, doi, structures, auteurs, keywords).
+
+Fonctionnement :
+La méthode 'fetch_ai_publications' exécute une requête Solr sur le champ 'q', 
+filtre les résultats par année de production et présence de DOI, puis itère 
+par pagination jusqu'à atteindre le quota 'max_results'.
 """
+
 import requests
 import time
 

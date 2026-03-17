@@ -86,10 +86,10 @@ def main():
             data = crawl_openalex_institutions()
             total_processed += run_source("openalex_inst", session, data, OpenAlexInstitutionProcessor, "process_institutions")
 
-        # 3. ArXiv
+       # 3. ArXiv / contrôle sur le volume pour les 4 catégories et sur l'année de début des recherches:
         if s in ["arxiv", "all"]:
             print("=== Running ArXiv Pipeline ===")
-            data = crawl_ai_articles()
+            data = crawl_ai_articles(max_results_per_cat=100, from_year=2025) 
             total_processed += run_source("arxiv", session, data, ArxivProcessor, "process_articles")
 
         # 4. Semantic Scholar (CLASSE avec arguments)

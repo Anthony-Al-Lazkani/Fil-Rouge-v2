@@ -7,13 +7,11 @@ Ce script interroge les archives d'arXiv pour récupérer les derniers travaux e
 Limitations Techniques :
 - DOI : Généralement NULL. arXiv étant un dépôt de preprints, le DOI n'est attribué 
   qu'après publication en revue (souvent non répertorié dans le flux API initial).
-- Affiliations/ORCID : Non fournis par l'API standard d'arXiv. Ces données seront 
-  récupérées via le croisement avec les sources HAL et OpenAlex (JSONL).
+- Affiliations/ORCID : Non fournis par l'API standard d'arXiv.
 
 Variables de contrôle :
 - AI_CATEGORIES : Liste des domaines arXiv à scanner (cs.AI, cs.LG, etc.).
 - MAX_RESULTS_PER_CATEGORY : Nombre total d'articles à récupérer par catégorie. 
-  Passez à 10 pour un test rapide, ou 1000+ pour une ingestion massive.
 - FETCH_BATCH_SIZE : Nombre d'articles demandés par requête API (max 100 recommandé par arXiv).
 - FETCH_DELAY : Temps de pause (secondes) entre les requêtes pour respecter les quotas de l'API.
 
@@ -30,28 +28,37 @@ from typing import List, Dict, Any
 AI_CATEGORIES = [
     "cs.AI",  # Artificial Intelligence
     "cs.LG",  # Machine Learning
+    "cs.MA",  # Covers multiagent systems, distributed artificial intelligence, intelligent agents, coordinated interactions. and practical applications
     "cs.NE",  # Neural and Evolutionary Computing
-    "cs.CV",  # Computer Vision (optional)
 ]
 
 BASE_ARXIV_URL = "https://export.arxiv.org/api/query"
 
 # Limits
-MAX_RESULTS_PER_CATEGORY = 3  # you can change this whenever
-FETCH_BATCH_SIZE = 10  # how many results to fetch per request
+MAX_RESULTS_PER_CATEGORY = 3000  # you can change this whenever
+FETCH_BATCH_SIZE = 100  # how many results to fetch per request
 FETCH_DELAY = 0.5  # seconds between requests
 POST_DELAY = 0.05  # optional small delay per article
 
 
 # ------------------ HELPER ------------------
 def get_arxiv_data(
-    category: str, start_index: int = 0, max_results: int = 100
+    category: str, start_index: int = 0, max_results: int = 100, from_year: int = None
 ) -> List[Dict[str, Any]]:
+    # Construction de la requête de base
+    query = f"cat:{category}"
+    
+    # Si une année est spécifiée, on ajoute un intervalle de date
+    # Format arXiv : [YYYYMMDDHHMM TO YYYYMMDDHHMM]
+    if from_year:
+        query += f" AND submittedDate:[{from_year}01010000 TO 203012312359]"
+
     url = (
-        f"{BASE_ARXIV_URL}?search_query=cat:{category}"
+        f"{BASE_ARXIV_URL}?search_query={query}"
         f"&start={start_index}&max_results={max_results}"
         f"&sortBy=submittedDate&sortOrder=descending"
     )
+    
     feed = feedparser.parse(url)
     articles = []
     for entry in feed.entries:
@@ -69,17 +76,18 @@ def get_arxiv_data(
 
 
 # ------------------ FETCHING ------------------
-def fetch_category(category: str) -> List[Dict[str, Any]]:
+def fetch_category(category: str, max_results: int, from_year: int = None) -> List[Dict[str, Any]]:
     start_index = 0
     fetched_articles = []
 
-    while len(fetched_articles) < MAX_RESULTS_PER_CATEGORY:
-        remaining = MAX_RESULTS_PER_CATEGORY - len(fetched_articles)
+    # On utilise max_results passé en paramètre ici
+    while len(fetched_articles) < max_results:
+        remaining = max_results - len(fetched_articles)
         batch_size = min(FETCH_BATCH_SIZE, remaining)
 
         articles = get_arxiv_data(
-            category, start_index=start_index, max_results=batch_size
-        )
+        category, start_index=start_index, max_results=batch_size, from_year=from_year
+    )
         if not articles:
             break
 
@@ -95,11 +103,12 @@ def fetch_category(category: str) -> List[Dict[str, Any]]:
 
 
 # ------------------ MAIN ------------------
-def crawl_ai_articles() -> List[Dict[str, Any]]:
+def crawl_ai_articles(max_results_per_cat: int = MAX_RESULTS_PER_CATEGORY, from_year: int = None) -> List[Dict[str, Any]]:
     all_articles = []
     for category in AI_CATEGORIES:
         print(f"=== Crawling category {category} ===")
-        articles = fetch_category(category)
+        
+        articles = fetch_category(category, max_results=max_results_per_cat, from_year=from_year)
         all_articles.extend(articles)
 
     print(f"\nTotal AI articles collected: {len(all_articles)}")
