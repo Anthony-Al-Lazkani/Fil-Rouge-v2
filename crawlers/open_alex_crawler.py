@@ -1,3 +1,21 @@
+"""
+Ce script utilise la bibliothèque 'pyalex' pour interroger l'index mondial OpenAlex. 
+Il se concentre sur l'extraction de travaux (Works) associés au concept 'Artificial Intelligence'.
+
+Variables de contrôle (Pilotables via le pipeline) :
+- max_articles : Nombre total d'articles à récupérer sur l'ensemble de la période.
+- from_year : Année de départ pour la collecte.
+- per_page : Taille des lots demandés à l'API (max 100).
+
+Fonctionnement :
+Le script boucle sur les années demandées, applique un filtre par concept (C41008148) 
+et récupère les métadonnées enrichies (DOI, Abstracts, Citations, Keywords, Topics).
+
+Limitations:
+- présence inégale de DOI
+"""
+
+
 from pyalex import Works, config
 from typing import List, Dict, Any
 import time
@@ -6,17 +24,31 @@ import time
 config.email = "anthonylazkani.22@gmail.com"
 config.max_retries = 3
 
-AI_CONCEPT_ID = "C41008148"
+AI_CONCEPT_ID = "C41008148" #recherche lié à l'IA
 START_YEAR = 2026
 END_YEAR = 2026
 PER_PAGE = 100
 
 
 # ------------------ MAIN CRAWLING FUNCTION ------------------
-def crawl_openalex_ai(max_articles: int = 10) -> List[Dict[str, Any]]:
+
+"""
+Logique technique :
+    1. Itère sur la plage d'années définie (from_year à to_year).
+    2. Initialise une requête filtrée sur le concept IA (C41008148) avec tri chronologique descendant.
+    3. Utilise un paginateur pour parcourir les résultats par lots (PER_PAGE).
+    4. Extrait et normalise les 'authorships' pour isoler les rôles (first, corresponding) et les affiliations (ROR, pays).
+    5. Capture les métadonnées de diffusion : DOI, Open Access, licences et sources (ISSN).
+    6. Récupère les relations sémantiques : mots-clés, thématiques (topics) et citations (referenced_works).
+"""
+
+def crawl_openalex_ai(max_articles: int = 10, from_year: int = START_YEAR, to_year: int = END_YEAR) -> List[Dict[str, Any]]:
+    """
+    Récupère les publications OpenAlex.
+    """
     all_works = []
 
-    for year in range(START_YEAR, END_YEAR + 1):
+    for year in range(from_year, to_year + 1): # 1.
         print(f"\n=== Crawling year {year} ===")
 
         if len(all_works) >= max_articles:
@@ -24,14 +56,13 @@ def crawl_openalex_ai(max_articles: int = 10) -> List[Dict[str, Any]]:
 
         query = (
             Works()
-            .filter(concepts={"id": AI_CONCEPT_ID}, publication_year=year)
+            .filter(concepts={"id": AI_CONCEPT_ID}, publication_year=year) # 2.
             .sort(publication_date="desc")
         )
 
-        pager = query.paginate(per_page=PER_PAGE)
+        pager = query.paginate(per_page=PER_PAGE) # 3.
 
         for page in pager:
-
             if len(all_works) >= max_articles:
                 break
 
@@ -47,7 +78,7 @@ def crawl_openalex_ai(max_articles: int = 10) -> List[Dict[str, Any]]:
                 if title is None or title.lower() == "deprecated":
                     continue
 
-                # Extract authors with full details
+                # Extract authors with full details 4.
                 authors = []
                 for idx, auth in enumerate(work.get("authorships", [])):
                     a = auth.get("author", {})
@@ -86,7 +117,7 @@ def crawl_openalex_ai(max_articles: int = 10) -> List[Dict[str, Any]]:
                 loc = work.get("primary_location") or {}
                 source_info = loc.get("source") or {}
 
-                # Build work data structure
+                # Build work data structure - 5. + 6.
                 work_data = {
                     "external_id": external_id,
                     "type": work.get("type", "article"),

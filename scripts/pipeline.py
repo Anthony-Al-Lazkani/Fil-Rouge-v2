@@ -44,9 +44,14 @@ def run_source(name, session, data, processor_class, process_method):
     print(f"Successfully processed {count} {name} items\n")
     return count
 
+
 def main():
     parser = argparse.ArgumentParser(description="Run data crawling and processing pipelines")
     parser.add_argument("--source", default="all", help="Source à traiter")
+    parser.add_argument("--limit", type=int, default=100, help="Nombre max d'items à récupérer")
+    parser.add_argument("--year", type=int, default=2022, help="Année de départ pour la collecte")
+    parser.add_argument("--query", default="intelligence artificielle", help="Mot-clé de recherche")
+
     args = parser.parse_args()
 
     print("Initializing database...")
@@ -54,6 +59,12 @@ def main():
 
     total_processed = 0
     s = args.source
+    limit = args.limit
+    year = args.year
+    query = args.query
+
+    # Traduction de la query pour les sources anglophones
+    query_en = "artificial intelligence" if query == "intelligence artificielle" else query
 
     with Session(engine) as session:
         # 0. Bases Locales (Crunchbase, AI Companies, etc.)
@@ -65,8 +76,8 @@ def main():
                 
                 # On lance les différentes méthodes du processeur
                 count = 0
-                #count += local_processor.process_crunchbase_csv()
-                #count += local_processor.process_ai_companies()
+                count += local_processor.process_crunchbase_csv()
+                count += local_processor.process_ai_companies()
                 count += local_processor.process_startups_2021()
                 
                 print(f"Successfully processed {count} local items\n")
@@ -75,69 +86,69 @@ def main():
                 print("Dossier /data non trouvé. Skip local ingestion.\n")
 
         # 1. OpenAlex
-        if s in ["openalex", 'open_alex', "all"]:
-            print("=== Running OpenAlex Pipeline ===")
-            data = crawl_openalex_ai()
+        if s in ["openalex", "all"]:
+            print(f"=== Running OpenAlex Pipeline (Limit: {limit}, Year: {year}) ===")
+            data = crawl_openalex_ai(max_articles=limit, from_year=year, to_year=2026)
             total_processed += run_source("openalex", session, data, OpenAlexProcessor, "process_works")
     
-        # 2. OpenAlex Institutions
+        # 2. OpenAlex Institutions / augmentation de la limite ici
         if s in ["openalex_inst", 'open_alex_institution', "all"]:
-            print("=== Running OpenAlex Institutions Pipeline ===")
-            data = crawl_openalex_institutions()
+            print(f"=== Running OpenAlex Institutions Pipeline (Limit: {limit}) ===")
+            data = crawl_openalex_institutions(limit=limit)
             total_processed += run_source("openalex_inst", session, data, OpenAlexInstitutionProcessor, "process_institutions")
 
-        # 3. ArXiv
+       # 3. ArXiv / max_results pour chaque catégorie d'articles / from_year: récupère de 2026 jusqu'à "from_year"
         if s in ["arxiv", "all"]:
-            print("=== Running ArXiv Pipeline ===")
-            data = crawl_ai_articles()
+            print(f"=== Running ArXiv Pipeline (Limit/Cat: {limit}, Year: {year}) ===")
+            data = crawl_ai_articles(max_results_per_cat=limit, from_year=year)
             total_processed += run_source("arxiv", session, data, ArxivProcessor, "process_articles")
 
         # 4. Semantic Scholar (CLASSE avec arguments)
         if s in ["semantic_scholar", 's2', "all"]:
-            print("=== Running Semantic Scholar Pipeline ===")
+            print(f"=== Running Semantic Scholar Pipeline (Limit: {limit}) ===")
             key = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
             crawler = SemanticScholarCrawler(api_key=key)
-            data = crawler.fetch_ai_papers(query="artificial intelligence", year=2026, max_results=10)
+            data = crawler.fetch_ai_papers(query=query_en, year=2026, max_results=limit)
             if data:
                 proc = SemanticScholarProcessor(session)
                 count = proc.process_papers(data)
                 total_processed += count
                 print(f"Processed {count} items\n")
 
-        # 5. HAL (CLASSE avec arguments)
+        # 5. HAL (CLASSE avec arguments) / contrôle sur la date de début et le max / attention HAL fournit les articles par ordre de pertinence et non par date
         if s in ["hal", "all"]:
-            print("=== Running HAL Pipeline ===")
+            print(f"=== Running HAL Pipeline (Query: {query}, Year: {year}) ===")
             try:
                 crawler = HALCrawler()
-                data = crawler.fetch_ai_publications(query="intelligence artificielle", start_year=2024, max_results=10)
+                data = crawler.fetch_ai_publications(query=query, start_year=year, max_results=limit)
                 total_processed += run_source("hal", session, data, HalProcessor, "process_records")
             except Exception as e:
                 print(f"[ERROR] HAL failed: {e}")
 
-        # 6. ScanR
+        # 6. ScanR / contrôle de la limite ici
         if s in ["scanr", "all"]:
-            print("=== Running ScanR Pipeline ===")
-            data = crawl_scanr_ai()
+            print(f"=== Running ScanR Pipeline (Query: {query}, Limit: {limit}) ===")
+            data = crawl_scanr_ai(query=query, limit=limit)
             total_processed += run_source("scanr", session, data, ScanRProcessor, "process_organizations")
 
-        # 7. INPI / EPO
+        # 7. INPI / EPO / contrôle sur la date la plus ancienne et sur le nombre de résultats max / attention, ne fonctionne que pendant 20min
         if s in ["inpi", 'epo', "all"]:
-            print("=== Running INPI / EPO Pipeline ===")
+            print(f"=== Running INPI Pipeline (Query: {query_en}, Year: {year}) ===")
             client_id = os.getenv("EPO_CLIENT_ID")
             client_secret = os.getenv("EPO_CLIENT_SECRET")
             crawler = InpiCrawler(client_id, client_secret)
-            data = crawler.fetch_ai_patents(max_results=10)
+            data = crawler.fetch_ai_patents(query_text=query_en, max_results=limit, from_year=year)
             if data:
                 proc = InpiProcessor(session)
                 count = proc.process_patents(data)
                 total_processed += count
                 print(f"Processed {count} items\n")
-
+        
           
-        # 8. OpenCorporates
+        # 8. OpenCorporates / pas de contrôle sur l'année ici, seulement sur le volume
         if s in ["open_corporates", "all"]:
-            print("=== Running Open Corporates Pipeline ===")
-            data = crawl_opencorporates_ai()
+            print(f"=== Running Open Corporates Pipeline (Query: {query_en}, Limit: {limit}) ===")
+            data = crawl_opencorporates_ai(limit=limit, query=query_en)
             total_processed += run_source("open_corporates", session, data, OpenCorporatesProcessor, "process_companies")
 
         
