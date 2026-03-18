@@ -49,7 +49,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run data crawling and processing pipelines")
     parser.add_argument("--source", default="all", help="Source à traiter")
     parser.add_argument("--limit", type=int, default=100, help="Nombre max d'items à récupérer")
-    parser.add_argument("--year", type=int, default=2022, help="Année de départ pour la collecte")
+    parser.add_argument("--year", type=int, default=2023, help="Année de départ pour la collecte")
     parser.add_argument("--query", default="intelligence artificielle", help="Mot-clé de recherche")
 
     args = parser.parse_args()
@@ -108,7 +108,7 @@ def main():
             print(f"=== Running Semantic Scholar Pipeline (Limit: {limit}) ===")
             key = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
             crawler = SemanticScholarCrawler(api_key=key)
-            data = crawler.fetch_ai_papers(query=query_en, year=2022, max_results=limit)
+            data = crawler.fetch_ai_papers(query=query_en, year=2026, max_results=limit)
             if data:
                 proc = SemanticScholarProcessor(session)
                 count = proc.process_papers(data)
