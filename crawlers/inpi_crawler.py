@@ -88,33 +88,43 @@ class InpiCrawler:
     # --- PARTIE CRAWLER ---
 
     def fetch_ai_patents(self, query_text: str = "artificial intelligence", max_results: int = 10, from_year: int = None):
-        """
-        Point d'entrée principal. 
-        Exécute la recherche, itère sur les références trouvées et orchestre les appels 
-        spécifiques (Biblio/Abstract) pour chaque brevet avant de formater le dictionnaire final.
-        """
         results = []
         
-        # ti= : recherche dans le titre
-        cql_query = f"ti={query_text}"
-        
+        # 1. Syntaxe CQL ultra-strict : termes entre guillemets et parenthèses globales
+        # L'API OPS peut rejeter pd >= 2022 s'il n'est pas formaté exactement ainsi
+        cql_query = f'ti="{query_text}"'
         if from_year:
-            cql_query += f" and pd >= {from_year}" #(pd = publication date)
+            cql_query = f'({cql_query} and pd>={from_year})'
 
         try:
-            # Recherche initiale des références
+            # 2. Utilisation de X-OPS-Range (Méthode officielle)
+            # On commence à 1, on finit à max_results
+            headers = self._headers()
+            headers["X-OPS-Range"] = f"1-{max_results}"
+
+            # 3. URL de recherche
+            search_url = f"{self.base_url}/published-data/search"
+            
+            # 4. Requête : on ne passe QUE 'q' en paramètre. 
+            # On enlève 'Range' de params car il est dans les headers.
             r = requests.get(
-                f"{self.base_url}/published-data/search",
-                headers=self._headers(),
-                params={"q": cql_query, "Range": f"1-{max_results}"},
+                search_url,
+                headers=headers,
+                params={"q": cql_query}
             )
-            r.raise_for_status()
+            
+            # Debug : si ça plante encore, on veut voir l'URL précise
+            if r.status_code != 200:
+                print(f"DEBUG INPI - URL: {r.url}")
+                print(f"DEBUG INPI - Headers: {headers}")
+                r.raise_for_status()
+
             refs = self._extract_refs(r.text)
 
             for ref in refs:
                 docdb_id = ref["docdb_id"]
                 
-                # Récupération Biblio
+                # Récupération Biblio (on régénère les headers pour chaque appel pour le token)
                 r_bib = requests.get(
                     f"{self.base_url}/published-data/publication/docdb/{docdb_id}/biblio",
                     headers=self._headers()
@@ -142,9 +152,11 @@ class InpiCrawler:
                 })
                 
                 print(f"EPO: Brevet {docdb_id} récupéré...")
-                time.sleep(0.02) # A mettre à 1.5s si on ne s'authentifie pas.
+                # Indispensable : l'EPO bloque si on va trop vite sur le détail
+                time.sleep(1.0) 
             
             return results
+
         except Exception as e:
             print(f"Erreur Crawler INPI: {e}")
             return []

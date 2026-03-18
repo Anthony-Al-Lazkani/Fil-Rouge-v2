@@ -12,28 +12,61 @@ class SemanticScholarCrawler:
         self.headers = {"x-api-key": api_key} if api_key else {}
         self.limit = limit
 
-    def fetch_ai_papers(self, query: str, year: int, max_results: int = 10):
-        """Récupère les articles pour une requête et une année précise."""
-        # On enlève 'language' qui fait planter l'API
-        fields = "paperId,title,abstract,year,authors,citationCount,venue,fieldsOfStudy,externalIds,url,openAccessPdf"
+    def fetch_ai_papers(self, query: str, year: int, max_results: int = 100):
+        all_papers = []
+        offset = 0
+        # S2 limite souvent à 100 par page pour les recherches textuelles
+        batch_size = 100 
         
-        params = {
-            "query": query,
-            "offset": 0,
-            "limit": max_results,
-            "year": str(year),
-            "fields": fields
-        }
-        
-        try:
-            response = requests.get(self.BASE_URL, params=params, headers=self.headers, timeout=30)
-            
-            if response.status_code != 200:
-                print(f"Erreur API S2 {response.status_code}: {response.text}")
-                return []
+        # On garde une liste de champs stable (sans abstract si la 500 persiste)
+        fields = "paperId,title,year,authors,venue,externalIds,citationCount"
 
-            return response.json().get("data", [])
+        print(f"--- Crawling S2: {query} ({year}) ---")
+
+        while len(all_papers) < max_results:
+            # On ajuste le batch_size pour ne pas dépasser max_results au dernier tour
+            current_limit = min(batch_size, max_results - len(all_papers))
             
-        except Exception as e:
-            print(f"Erreur système S2: {e}")
-            return []
+            params = {
+                "query": query,
+                "offset": offset,
+                "limit": current_limit,
+                "year": str(year),
+                "fields": fields
+            }
+            
+            try:
+                response = requests.get(self.BASE_URL, params=params, headers=self.headers, timeout=30)
+                
+                # Gestion du Rate Limit (429)
+                if response.status_code == 429:
+                    print("S2 Rate Limit : pause de 5 secondes...")
+                    time.sleep(5)
+                    continue
+
+                # Gestion de l'erreur 500 (Problème serveur S2)
+                if response.status_code == 500:
+                    print("S2 Erreur 500 : tentative sans le champ abstract...")
+                    # On pourrait ici retirer un champ lourd si besoin
+                    break
+
+                response.raise_for_status()
+                data = response.json().get("data", [])
+                
+                if not data:
+                    print("Plus de résultats disponibles sur S2.")
+                    break
+
+                all_papers.extend(data)
+                offset += len(data)
+                
+                print(f"S2 : {len(all_papers)}/{max_results} récupérés (Offset: {offset})")
+
+                # Respect du quota (important même avec une clé)
+                time.sleep(0.5)
+
+            except Exception as e:
+                print(f"Erreur S2 à l'offset {offset}: {e}")
+                break
+
+        return all_papers

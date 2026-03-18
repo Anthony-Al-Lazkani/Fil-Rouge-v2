@@ -64,7 +64,7 @@ def main():
     query = args.query
 
     # Traduction de la query pour les sources anglophones
-    query_en = "artificial intelligence" if query == "intelligence artificielle" else query
+    query_en = "artificial intelligence" if query == "intelligence artificielle." else query
 
     with Session(engine) as session:
         # 0. Bases Locales (Crunchbase, AI Companies, etc.)
@@ -108,7 +108,7 @@ def main():
             print(f"=== Running Semantic Scholar Pipeline (Limit: {limit}) ===")
             key = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
             crawler = SemanticScholarCrawler(api_key=key)
-            data = crawler.fetch_ai_papers(query=query_en, year=2026, max_results=limit)
+            data = crawler.fetch_ai_papers(query=query_en, year=2022, max_results=limit)
             if data:
                 proc = SemanticScholarProcessor(session)
                 count = proc.process_papers(data)

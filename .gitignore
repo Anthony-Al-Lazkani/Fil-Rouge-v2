@@ -8,6 +8,7 @@ __pycache__/
 
 # Données locales
 database.db
+*.db
 
 # OS
 .DS_Store
