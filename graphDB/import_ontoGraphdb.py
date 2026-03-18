@@ -20,9 +20,9 @@ def load_file(filepath):
         )
 
     if response.status_code == 204:
-        print(f"✅ {filepath} chargé avec succès")
+        print(f"{filepath} chargé avec succès")
     else:
-        print(f"❌ Erreur {response.status_code}: {response.text}")
+        print(f"Erreur {response.status_code}: {response.text}")
 
 
 def count_triples():

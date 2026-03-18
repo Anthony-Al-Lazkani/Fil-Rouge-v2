@@ -1,8 +1,10 @@
 """
 À partir de la base de données, peuple l'ontologie dans GraphDB
+LIMIT : permet de limiter le nombre d'entités traitées
 """
 import json
 import sqlite3
+from itertools import combinations
 from pathlib import Path
 import requests
 import re
@@ -11,10 +13,10 @@ import time
 import unicodedata
 
 GRAPHDB_URL = "http://localhost:7200"
-REPO_ID = "fil-rouge-final"
+REPO_ID = "fil-rougev1"
 DB_PATH = Path(__file__).parent.parent / "database.db"
 PREFIX = "http://www.semanticweb.org/s2b/ontologie#"
-LIMIT = 100000000
+LIMIT = 1000000
 
 session = requests.Session()
 
@@ -29,7 +31,7 @@ def sparql_update(query):
         if r.status_code == 204:
             return True
         else:
-            print(f"❌ {r.status_code} - {r.text[:200]}")
+            print(f"{r.status_code} - {r.text[:200]}")
             return False
     except requests.exceptions.ConnectionError:
         print("Pause connexion...")
@@ -50,8 +52,6 @@ def escape(text):
     if not text:
         return ""
     return text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", "")
-
-# Chercheurs (table: author)
 
 # PERSONNES (table: author)
 
@@ -102,7 +102,6 @@ def peupler_entites():
     rows = conn.execute(f"SELECT * FROM entity LIMIT {LIMIT}").fetchall()
     total, ok = len(rows), 0
 
-    # Pré-charger tous les parents en une seule requête
     parent_map = {}
     parent_rows = conn.execute("SELECT id, external_id, ror FROM entity WHERE id IN (SELECT DISTINCT parent_id FROM entity WHERE parent_id IS NOT NULL)").fetchall()
     for pr in parent_rows:
@@ -127,7 +126,6 @@ def peupler_entites():
         revenue = r["estimated_revenue"] or ""
         last_funding = r["last_funding_date"] or ""
 
-        # Industries (JSON list → string)
         industries_raw = r["industries"]
         if industries_raw and isinstance(industries_raw, str):
             try:
@@ -139,7 +137,6 @@ def peupler_entites():
         else:
             industries_list = []
 
-        # Acronymes
         acronyms_raw = r["acronyms"]
         if acronyms_raw and isinstance(acronyms_raw, str):
             try:
@@ -165,46 +162,21 @@ def peupler_entites():
         else:
             classe = ["Organisation"]
 
-        # URI pays : remplacer espaces par underscore
         pays_uri = clean_uri(country.replace(" ", "_")) if country else None
 
-        # Parent pré-chargé
         parent_id = r["parent_id"]
         parent_ext = parent_map.get(parent_id) if parent_id else None
 
         extras = ""
-        if website:
-            extras += f':{uri} :siteWeb "{escape(website)}" .\n'
-        if description:
-            extras += f':{uri} :description "{description}" .\n'
-        if city:
-            extras += f':{uri} :ville "{escape(city)}" .\n'
         if founded:
             extras += f':{uri} :dateDeCreation "{escape(founded)}" .\n'
-        if operating:
-            extras += f':{uri} :statutOperationnel "{escape(operating)}" .\n'
         if funding is not None:
-            extras += f':{uri} :totalFunding "{funding}"^^xsd:decimal .\n'
-        if valuation is not None:
-            extras += f':{uri} :valuation "{valuation}"^^xsd:decimal .\n'
+            extras += f':{uri} :totalFunding {funding} .\n'
         if is_ai is not None:
-            extras += f':{uri} :lieAlIA {"true" if is_ai else "false"} .\n'
-        if ai_pct is not None:
-            extras += f':{uri} :aiFocusPercent {ai_pct} .\n'
-        if works:
-            extras += f':{uri} :nbDePublications {works} .\n'
-        if cited:
-            extras += f':{uri} :nbCitations {cited} .\n'
-        if revenue:
-            extras += f':{uri} :estimatedRevenue "{escape(revenue)}" .\n'
-        if last_funding:
-            extras += f':{uri} :lastFundingDate "{escape(last_funding)}" .\n'
-        if parent_ext:
-            extras += f':{uri} :estFilialeDe :{parent_ext} .\n'
+            val = "true" if is_ai else "false"
+            extras += f':{uri} :lieAlIA {val} .\n'
         for ind in industries_list:
             extras += f':{uri} :secteur "{escape(str(ind))}" .\n'
-        for acr in acronyms_list:
-            extras += f':{uri} :acronyme "{escape(str(acr))}" .\n'
 
         types_str = ", ".join(f":{c}" for c in classe)
         query = f"""
@@ -250,18 +222,20 @@ def peupler_researchitem():
         url = r["url"] or ""
         is_retracted = r["is_retracted"]
 
-        # Keywords & Topics (JSON lists)
         for field_name in ("keywords", "topics"):
             raw = r[field_name]
+            parsed = []
             if raw and isinstance(raw, str):
                 try:
-                    locals()[field_name] = json.loads(raw)
+                    parsed = json.loads(raw)
                 except (json.JSONDecodeError, TypeError):
-                    locals()[field_name] = []
+                    parsed = []
             elif isinstance(raw, list):
-                locals()[field_name] = raw
+                parsed = raw
+            if field_name == "keywords":
+                keywords = parsed
             else:
-                locals()[field_name] = []
+                topics = parsed
 
         keywords = locals().get("keywords", [])
         topics = locals().get("topics", [])
@@ -288,22 +262,22 @@ def peupler_researchitem():
         if is_retracted:
             extras += f':{uri} :estRetracte true .\n'
 
-        # Mots-clés → domaines
-        for kw in keywords:
-            kw_uri = clean_uri(str(kw))
-            extras += f':{uri} :aPourDomaine :{kw_uri} .\n'
-            extras += f':{kw_uri} a :Domaine ; :aPourNameEN "{escape(str(kw))}" .\n'
-
-        # Topics → domaines
-        for tp in topics:
-            tp_uri = clean_uri(str(tp))
-            extras += f':{uri} :aPourDomaine :{tp_uri} .\n'
-            extras += f':{tp_uri} a :Domaine ; :aPourNameEN "{escape(str(tp))}" .\n'
-
         if item_type == "patent":
             classe = "Brevet"
         else:
             classe = "TravailDeRecherche"
+
+        if classe == "TravailDeRecherche":
+            for kw in keywords:
+                extras += f':{uri} :motsCles "{escape(str(kw))}" .\n'
+
+        """for tp in topics:
+            tp_str = str(tp).strip()
+            if not tp_str:
+                continue
+            tp_uri = clean_uri(tp_str)
+            extras += f':{uri} :aPourDomaine :{tp_uri} .\n'
+            extras += f':{tp_uri} a :Domaine ; :aPourNameEN "{escape(tp_str)}" .\n'"""
 
         query = f"""
         DELETE {{ :{uri} :titre ?old ; :nbCitations ?oldCit }}
@@ -353,6 +327,9 @@ def peupler_affiliations():
     rows = conn.execute(query_sql).fetchall()
     total, ok = len(rows), 0
 
+    entity_fondateurs = {}
+    article_auteurs = {}
+
     for i, r in enumerate(rows, 1):
         auteur_uri = clean_uri(r["author_external_id"])
         article_uri = clean_uri(r["research_external_id"]) if r["research_external_id"] else None
@@ -366,17 +343,16 @@ def peupler_affiliations():
 
         triples = []
 
-        # --- Affiliation : toujours si entité ---
         if entity_uri:
             triples.append(f":{auteur_uri} :estAffilieA :{entity_uri} .")
 
-        # --- Rôles ---
+        #Rôles
         if role == "founder" and entity_uri:
             triples.append(f":{auteur_uri} :aFonde :{entity_uri} .")
+            entity_fondateurs.setdefault(entity_uri, set()).add(auteur_uri)
         elif role == "leader" and entity_uri:
             triples.append(f":{auteur_uri} :dirige :{entity_uri} .")
 
-        # --- Research items (indépendant du rôle) ---
         if article_uri:
             if research_type in ("brevet", "patent"):
                 triples.append(f":{article_uri} :estDeposePar :{auteur_uri} .")
@@ -385,6 +361,7 @@ def peupler_affiliations():
             else:
                 triples.append(f":{auteur_uri} :aEcrit :{article_uri} .")
                 triples.append(f":{article_uri} :estEcritPar :{auteur_uri} .")
+                article_auteurs.setdefault(article_uri, set()).add(auteur_uri)
 
         if not triples:
             continue
@@ -396,6 +373,16 @@ def peupler_affiliations():
         if i % 10 == 0:
             print(f"  → {i}/{total} affiliations traitées")
             time.sleep(0.1)
+
+    for article, auteurs in article_auteurs.items():
+        if len(auteurs) >= 2:
+            t = [f":{a1} :aPourCoauteur :{a2} ." for a1, a2 in combinations(auteurs, 2)]
+            sparql_update(f"INSERT DATA {{ {chr(10).join(t)} }}")
+
+    for entity, fondateurs in entity_fondateurs.items():
+        if len(fondateurs) >= 2:
+            t = [f":{a1} :aPourAssocie :{a2} ." for a1, a2 in combinations(fondateurs, 2)]
+            sparql_update(f"INSERT DATA {{ {chr(10).join(t)} }}")
 
     conn.close()
 
@@ -416,22 +403,22 @@ if __name__ == "__main__":
     print(f"Peuplement de GraphDB (LIMIT={LIMIT})...\n")
 
     print("Personnes...")
-    peupler_personnes()
-    print("✅ Personnes OK\n")
+    #peupler_personnes()
+    print("Personnes OK\n")
 
     print("Entités (institutions + entreprises)...")
-    peupler_entites()
-    print("✅ Entités OK\n")
+    #peupler_entites()
+    print("Entités OK\n")
 
     print("ResearchItems...")
-    peupler_researchitem()
-    print("✅ ResearchItems OK\n")
+    #peupler_researchitem()
+    print("ResearchItems OK\n")
 
     print("Affiliations...")
     peupler_affiliations()
-    print("✅ Affiliations OK\n")
+    print("Affiliations OK\n")
 
     compter_triples()
     elapsed = _time.time() - _start
     minutes, seconds = divmod(int(elapsed), 60)
-    print(f"\n✅ Terminé en {minutes}m {seconds}s")
+    print(f"\nTerminé en {minutes}m {seconds}s")

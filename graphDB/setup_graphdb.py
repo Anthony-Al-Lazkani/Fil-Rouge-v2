@@ -10,7 +10,6 @@ GRAPHDB_URL = "http://localhost:7200"
 REPO_ID = "fil-rouge-final"
 
 def create_repository():
-    # Envoyer le fichier TTL en multipart/form-data
     config_path = os.path.join(os.path.dirname(__file__), "repo-config.ttl")
     with open(config_path, "rb") as f:
         response = requests.post(
@@ -19,11 +18,11 @@ def create_repository():
         )
 
     if response.status_code in [200, 201]:
-        print(f"✅ Repository '{REPO_ID}' créé")
+        print(f"Repository '{REPO_ID}' créé")
     elif response.status_code == 409:
-        print(f"⚠️ Repository '{REPO_ID}' existe déjà")
+        print(f"Repository '{REPO_ID}' existe déjà")
     else:
-        print(f"❌ Erreur {response.status_code}: {response.text}")
+        print(f"Erreur {response.status_code}: {response.text}")
 
 
 def test_connection():
@@ -35,9 +34,9 @@ def test_connection():
 
     if response.status_code == 200:
         count = response.json()["results"]["bindings"][0]["count"]["value"]
-        print(f"✅ Connexion OK - {count} triples")
+        print(f"Connexion OK - {count} triples")
     else:
-        print(f"❌ Erreur de connexion")
+        print(f"Erreur de connexion")
 
 
 if __name__ == "__main__":
