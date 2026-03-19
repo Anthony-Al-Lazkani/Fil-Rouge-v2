@@ -153,7 +153,7 @@ class InpiCrawler:
                 
                 print(f"EPO: Brevet {docdb_id} récupéré...")
                 # Indispensable : l'EPO bloque si on va trop vite sur le détail
-                time.sleep(1.5) 
+                time.sleep(1.6) 
             
             return results
 
