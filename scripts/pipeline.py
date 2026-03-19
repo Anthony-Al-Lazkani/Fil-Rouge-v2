@@ -49,7 +49,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run data crawling and processing pipelines")
     parser.add_argument("--source", default="all", help="Source à traiter")
     parser.add_argument("--limit", type=int, default=100, help="Nombre max d'items à récupérer")
-    parser.add_argument("--year", type=int, default=2023, help="Année de départ pour la collecte")
+    parser.add_argument("--year", type=int, default=2024, help="Année de départ pour la collecte")
     parser.add_argument("--query", default="intelligence artificielle", help="Mot-clé de recherche")
 
     args = parser.parse_args()
