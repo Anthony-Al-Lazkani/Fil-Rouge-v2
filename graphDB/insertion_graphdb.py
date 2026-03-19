@@ -13,7 +13,7 @@ import time
 import unicodedata
 
 GRAPHDB_URL = "http://localhost:7200"
-REPO_ID = "fil-rougev1"
+REPO_ID = "fil-rouge-final"
 DB_PATH = Path(__file__).parent.parent / "database.db"
 PREFIX = "http://www.semanticweb.org/s2b/ontologie#"
 LIMIT = 1000000
@@ -301,6 +301,16 @@ def peupler_researchitem():
     print(f"Articles : {ok}/{total}")
 
 # AFFILIATIONS (table: affiliation)
+BATCH_SIZE = 500
+def sparql_update_batch(triples_list):
+    for i in range(0, len(triples_list), BATCH_SIZE):
+        batch = triples_list[i:i + BATCH_SIZE]
+        sparql = f"INSERT DATA {{ {chr(10).join(batch)} }}"
+        if not sparql_update(sparql):
+            print(f"Échec batch {i}-{i+len(batch)}")
+        if i % 5000 == 0:
+            print(f"  → {i}/{len(triples_list)} triples envoyés")
+        time.sleep(0.05)
 
 def peupler_affiliations():
     conn = sqlite3.connect(DB_PATH)

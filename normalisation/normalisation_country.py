@@ -45,6 +45,7 @@ MANUAL_MAP = {
     "-": None,
     "the": "Netherlands",
     "uni": "United Kingdom",
+    "xk": "Kosovo",
 }
 
 
