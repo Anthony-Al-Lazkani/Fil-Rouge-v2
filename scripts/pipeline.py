@@ -64,7 +64,7 @@ def main():
     query = args.query
 
     # Traduction de la query pour les sources anglophones
-    query_en = "artificial intelligence" if query == "intelligence artificielle." else query
+    query_en = "artificial intelligence" if query == "intelligence artificielle" else query
 
     with Session(engine) as session:
         # 0. Bases Locales (Crunchbase, AI Companies, etc.)
