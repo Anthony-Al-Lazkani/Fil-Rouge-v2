@@ -403,15 +403,15 @@ if __name__ == "__main__":
     print(f"Peuplement de GraphDB (LIMIT={LIMIT})...\n")
 
     print("Personnes...")
-    #peupler_personnes()
+    peupler_personnes()
     print("Personnes OK\n")
 
     print("Entités (institutions + entreprises)...")
-    #peupler_entites()
+    peupler_entites()
     print("Entités OK\n")
 
     print("ResearchItems...")
-    #peupler_researchitem()
+    peupler_researchitem()
     print("ResearchItems OK\n")
 
     print("Affiliations...")

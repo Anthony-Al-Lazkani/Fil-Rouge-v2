@@ -35,12 +35,18 @@ class InpiCrawler:
     Gère l'authentification OAuth2, la recherche CQL et le parsing XML des brevets.
     """
 
-    def __init__(self, client_id: str, client_secret: str):
+    def __init__(self, client_id: str, client_secret: str, session=None):
         self.client_id = client_id
         self.client_secret = client_secret
         self.token = None
         self.token_expiry = 0
+        self.session = session
         self.base_url = "https://ops.epo.org/3.2/rest-services"
+        if self.session:
+            from processors.inpi_processor import InpiProcessor
+            self.processor = InpiProcessor(self.session)
+        else:
+            self.processor = None
 
 
 
@@ -140,7 +146,7 @@ class InpiCrawler:
                         )
                         abstract = self._parse_abstract(r_abs.text) if r_abs.status_code == 200 else None
 
-                        results.append({
+                        patent_item={
                             "external_id": docdb_id,
                             "title": bib_data["title"],
                             "abstract": abstract,
@@ -148,7 +154,18 @@ class InpiCrawler:
                             "authors": list(set(bib_data["applicants"] + bib_data["inventors"])),
                             "applicants": bib_data["applicants"],
                             "inventors": bib_data["inventors"]
-                        })
+                        }
+
+                        # --- SAUVEGARDE IMMÉDIATE ---
+                        if self.session and self.processor:
+                            try:
+                                # On utilise le processeur déjà initialisé
+                                self.processor.process_patents([patent_item]) 
+                                self.session.commit() 
+                                print(f"EPO: {docdb_id} INSCRIT EN BDD.")
+                            except Exception as e:
+                                self.session.rollback()
+                                print(f"Erreur BDD pour {docdb_id}: {e}")
                         
                         print(f"EPO: {docdb_id} ok.")
                         # Throttling CRITIQUE : 2 secondes entre CHAQUE appel de détail

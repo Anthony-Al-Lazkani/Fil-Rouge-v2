@@ -84,8 +84,10 @@ class InpiProcessor:
                     raw=p
                 )
                 self.session.add(item)
+                self.session.commit()
                 count += 1
             except Exception as e:
+                self.session.rollback() # Important pour débloquer la session en cas d'erreur
                 print(f"Erreur processing brevet {ext_id}: {e}")
                 
         self.session.commit()

@@ -131,19 +131,17 @@ def main():
             data = crawl_scanr_ai(query=query, limit=limit)
             total_processed += run_source("scanr", session, data, ScanRProcessor, "process_organizations")
 
-        # 7. INPI / EPO / contrôle sur la date la plus ancienne et sur le nombre de résultats max / attention, ne fonctionne que pendant 20min
+        # 7. INPI / EPO / Inscription au fil de l'eau
         if s in ["inpi", 'epo', "all"]:
             print(f"=== Running INPI Pipeline (Query: {query_en}, Year: {year}) ===")
             client_id = os.getenv("EPO_CLIENT_ID")
             client_secret = os.getenv("EPO_CLIENT_SECRET")
-            crawler = InpiCrawler(client_id, client_secret)
-            data = crawler.fetch_ai_patents(query_text=query_en, max_results=limit, from_year=year)
-            if data:
-                proc = InpiProcessor(session)
-                count = proc.process_patents(data)
-                total_processed += count
-                print(f"Processed {count} items\n")
-        
+            
+            # AJOUT de session=session ici :
+            crawler = InpiCrawler(client_id, client_secret, session=session)
+            
+            # Cette méthode gère maintenant l'insertion toute seule
+            crawler.fetch_ai_patents(query_text=query_en, max_results=limit, from_year=year)
           
         # 8. OpenCorporates / pas de contrôle sur l'année ici, seulement sur le volume
         if s in ["open_corporates", "all"]:
