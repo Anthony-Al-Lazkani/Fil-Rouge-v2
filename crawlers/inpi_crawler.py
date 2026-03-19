@@ -87,79 +87,82 @@ class InpiCrawler:
 
     # --- PARTIE CRAWLER ---
 
-    def fetch_ai_patents(self, query_text: str = "artificial intelligence", max_results: int = 10, from_year: int = None):
+    def fetch_ai_patents(self, query_text: str = "artificial intelligence", max_results: int = 1500, from_year: int = None):
         results = []
-        
-        # 1. Syntaxe CQL ultra-strict : termes entre guillemets et parenthèses globales
-        # L'API OPS peut rejeter pd >= 2022 s'il n'est pas formaté exactement ainsi
         cql_query = f'ti="{query_text}"'
         if from_year:
-            cql_query = f'({cql_query} and pd>={from_year})'
+            cql_query += f" and pd>={from_year}"
 
-        try:
-            # 2. Utilisation de X-OPS-Range (Méthode officielle)
-            # On commence à 1, on finit à max_results
-            headers = self._headers()
-            headers["X-OPS-Range"] = f"1-{max_results}"
+        # On avance par tranches de 100 (limite de l'OEB)
+        step = 100
+        for start in range(1, max_results + 1, step):
+            end = min(start + step - 1, max_results)
+            
+            print(f"EPO: Requête des brevets {start} à {end}...")
+            
+            try:
+                headers = self._headers()
+                headers["X-OPS-Range"] = f"{start}-{end}"
 
-            # 3. URL de recherche
-            search_url = f"{self.base_url}/published-data/search"
-            
-            # 4. Requête : on ne passe QUE 'q' en paramètre. 
-            # On enlève 'Range' de params car il est dans les headers.
-            r = requests.get(
-                search_url,
-                headers=headers,
-                params={"q": cql_query}
-            )
-            
-            # Debug : si ça plante encore, on veut voir l'URL précise
-            if r.status_code != 200:
-                print(f"DEBUG INPI - URL: {r.url}")
-                print(f"DEBUG INPI - Headers: {headers}")
+                r = requests.get(
+                    f"{self.base_url}/published-data/search",
+                    headers=headers,
+                    params={"q": cql_query}
+                )
+                
+                if r.status_code == 403:
+                    print("EPO: Ban 403 détecté. Pause forcée de 2 minutes...")
+                    time.sleep(120)
+                    continue # On retente la même tranche
+                
                 r.raise_for_status()
-
-            refs = self._extract_refs(r.text)
-
-            for ref in refs:
-                docdb_id = ref["docdb_id"]
+                refs = self._extract_refs(r.text)
                 
-                # Récupération Biblio (on régénère les headers pour chaque appel pour le token)
-                r_bib = requests.get(
-                    f"{self.base_url}/published-data/publication/docdb/{docdb_id}/biblio",
-                    headers=self._headers()
-                )
-                if r_bib.status_code == 404: continue
-                r_bib.raise_for_status()
-                bib_data = self._parse_biblio(r_bib.text)
+                if not refs:
+                    print("EPO: Plus de résultats disponibles.")
+                    break
 
-                # Récupération Abstract
-                r_abs = requests.get(
-                    f"{self.base_url}/published-data/publication/docdb/{docdb_id}/abstract",
-                    headers=self._headers()
-                )
-                abstract = self._parse_abstract(r_abs.text) if r_abs.status_code == 200 else None
+                for ref in refs:
+                    docdb_id = ref["docdb_id"]
+                    
+                    # Détails : Biblio
+                    r_bib = requests.get(
+                        f"{self.base_url}/published-data/publication/docdb/{docdb_id}/biblio",
+                        headers=self._headers()
+                    )
+                    if r_bib.status_code == 200:
+                        bib_data = self._parse_biblio(r_bib.text)
+                        
+                        # Détails : Abstract
+                        r_abs = requests.get(
+                            f"{self.base_url}/published-data/publication/docdb/{docdb_id}/abstract",
+                            headers=self._headers()
+                        )
+                        abstract = self._parse_abstract(r_abs.text) if r_abs.status_code == 200 else None
 
-                results.append({
-                    "external_id": docdb_id,
-                    "title": bib_data["title"],
-                    "abstract": abstract,
-                    "year": bib_data["year"],
-                    "authors": list(set(bib_data["applicants"] + bib_data["inventors"])),
-                    "applicants": bib_data["applicants"],
-                    "inventors": bib_data["inventors"],
-                    "raw": {"ref": ref, "bib": bib_data}
-                })
-                
-                print(f"EPO: Brevet {docdb_id} récupéré...")
-                # Indispensable : l'EPO bloque si on va trop vite sur le détail
-                time.sleep(1.6) 
-            
-            return results
+                        results.append({
+                            "external_id": docdb_id,
+                            "title": bib_data["title"],
+                            "abstract": abstract,
+                            "year": bib_data["year"],
+                            "authors": list(set(bib_data["applicants"] + bib_data["inventors"])),
+                            "applicants": bib_data["applicants"],
+                            "inventors": bib_data["inventors"]
+                        })
+                        
+                        print(f"EPO: {docdb_id} ok.")
+                        # Throttling CRITIQUE : 2 secondes entre CHAQUE appel de détail
+                        time.sleep(2.0) 
+                    
+                # Pause supplémentaire entre deux tranches de 100
+                print("Fin de tranche, pause de 5 secondes...")
+                time.sleep(5.0)
 
-        except Exception as e:
-            print(f"Erreur Crawler INPI: {e}")
-            return []
+            except Exception as e:
+                print(f"Erreur tranche {start}-{end}: {e}")
+                break
+
+        return results
 
 
 
