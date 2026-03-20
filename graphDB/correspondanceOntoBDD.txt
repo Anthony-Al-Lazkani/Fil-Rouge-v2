@@ -1,0 +1,205 @@
+### --- CLASSES --- ###
+
+:Acteur :Class
+:Personne :Class
+:Chercheur :Class
+:Entrepreneur :Class
+:Organisation :Class
+:OrganisationFacilitatrice :Class
+:OrganisationProductrice :Class
+:Laboratoire :Class
+:Université :Class
+:Entreprise :Class
+:Startup :Class
+:Pays :Class
+:Domaine :Class
+:Technologie :Class
+:Brevet :Class
+:RessourceDeConnaissance :Class
+:TravailDeRecherche :Class
+
+### --- PROPRIÉTÉS D'OBJET --- ###
+
+:developpe =
+    rdfs:domain :Acteur ;
+    rdfs:range :Technologie .
+
+:estBrevete =
+    rdfs:domain :Technologie ;
+    rdfs:range :Brevet .
+
+:collaboreAvec =
+    rdfs:domain :Personne ;
+    rdfs:range :Personne .
+
+:dirige =
+    rdfs:domain :Personne ;
+    rdfs:range :Entreprise .
+
+:aEcrit = auteur de TravailDeRecherche (Affiliation)
+    rdfs:domain :Personne ;
+    rdfs:range :TravailDeRecherche .
+
+:ecritPar = dans Affiliation
+    owl:inverseOf :aEcrit ;
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range :Personne .
+
+:aFonde =
+    rdfs:domain :Personne ;
+    rdfs:range :Entreprise .
+
+:aPourAssocie :
+    rdfs:domain :Entrepreneur ;
+    rdfs:range :Entrepreneur .
+
+:aPourCoauteur = aEcrit même article - liste des auteurs dans ecritPar
+    rdfs:domain :Chercheur ;
+    rdfs:range :Chercheur .
+
+:estAffilieA = lien author(Personne)/entity (Affiliation)
+    rdfs:domain :Chercheur ;
+    rdfs:range :Université .
+
+:aPourDomaine = à partir de topics (ResearchItem)
+    rdfs:domain :RessourceDeConnaissance ;
+    rdfs:range :Domaine .
+
+:deriveDe :
+    rdfs:domain :Brevet ;
+    rdfs:range :TravailDeRecherche .
+
+:cite :
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range :TravailDeRecherche .
+
+:estDeposePar :
+    rdfs:domain :Brevet ;
+    rdfs:range :Organisation .
+
+:favorise :
+    rdfs:domain :OrganisationFacilitatrice ;
+    rdfs:range :Personne .
+
+:finance :
+    rdfs:domain :OrganisationFacilitatrice ;
+    rdfs:range :TravailDeRecherche .
+
+:estLocaliseEn = country_code (entity) à lié à la classe Pays
+    rdfs:domain :Organisation ;
+    rdfs:range :Pays .
+
+### --- PROPRIÉTÉS DE DONNÉES --- ###
+
+# Personne
+:aPourNom = full_name (Author)
+    rdfs:domain :Personne ;
+    rdfs:range xsd:string .
+
+# Chercheur
+:aPourId = external_id (Author)
+    rdfs:domain :Chercheur ;
+    rdfs:range xsd:string .
+
+:aPourOrcid = orcid (Author)
+    rdfs:domain :Chercheur ;
+    rdfs:range xsd:string .
+
+:nbDePublications = publication_count (Author)
+    rdfs:domain :Chercheur ;
+    rdfs:range xsd:integer .
+
+# Organisation
+:aPourNomOrganisation = name (Entity)
+    rdfs:domain :Organisation ;
+    rdfs:range xsd:string .
+
+:typeOrganisation = type (Entity)
+    rdfs:domain :Organisation ;
+    rdfs:range xsd:string .
+
+:dateDeCreation = founded_date (Entity)
+    rdfs:domain :Organisation ;
+    rdfs:range xsd:date .
+
+# Organisation Productrice
+:nbDeBrevets = somme des brevets liés
+    rdfs:domain :OrganisationProductrice ;
+    rdfs:range xsd:integer .
+
+# Entreprise
+:secteur = industries (Entity)
+    rdfs:domain :Entreprise ;
+    rdfs:range xsd:string .
+
+:lieAlIA = is_ai_related or ai_focus_percent (Entity)
+    rdfs:domain :Entreprise ;
+    rdfs:range xsd:boolean .
+
+:nbInvestisseurs
+    rdfs:domain :Entreprise ;
+    rdfs:range xsd:integer .
+
+:totalFunding = total_funding (Entity)
+    rdfs:domain :Entreprise ;
+    rdfs:range xsd:decimal .
+
+# Pays
+:codePays = country_code (Entity)
+    rdfs:domain :Pays ;
+    rdfs:range xsd:string .
+
+# Domaine
+:aPourNomFR :
+    rdfs:domain :Domaine ;
+    rdfs:range xsd:string .
+
+:aPourNameEN = topics (ResearchItem)
+    rdfs:domain :Domaine ;
+    rdfs:range xsd:string .
+
+:code : voir Hal ?
+    rdfs:domain :Domaine ;
+    rdfs:range xsd:string .
+
+# Travail de Recherche
+:nbCitations = citation_count (ResearchItem)
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:integer .
+
+:aPourDOI = doi (ResearchItem)
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:string .
+
+:titre = title (ResearchItem)
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:string .
+
+:resume = abstract (ResearchItem)
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:string .
+
+:dateDePublication = publication_date (ResearchItem)
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:date .
+
+:langue = language (ResearchItem)
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:string .
+
+:motsCles = keywords (ResearchItem)
+    rdfs:domain :TravailDeRecherche ;
+    rdfs:range xsd:string .
+
+# Ressource de Connaissance
+:annee = year (ResearchItem)
+    rdfs:domain :RessourceDeConnaissance ;
+    rdfs:range xsd:gYear .
+
+:type = type (ResearchItem)
+    rdfs:domain :RessourceDeConnaissance ;
+    rdfs:range xsd:string .
+
+:aPourIdRessource = external_id (ResearchItem)
+    rdfs:domain :RessourceDeConnaissance ;
+    rdfs:range xsd:string .

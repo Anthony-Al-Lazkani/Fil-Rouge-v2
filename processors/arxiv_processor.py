@@ -1,87 +1,80 @@
-from database import get_session
-from services.research_item_service import ResearchItemService
-from services.source_service import SourceService
-from services.author_service import AuthorService
-from schemas.research_item import ResearchItemCreate
-from schemas.source import SourceCreate
-from schemas.author import AuthorCreate
-from typing import List, Dict, Any
+"""
+Processeur épuré pour les données arXiv.
+Harmonisé avec OrganizationProcessor.
+"""
 
+from sqlmodel import Session, select
+from models import ResearchItem, Author, Source
+from datetime import datetime
 
 class ArxivProcessor:
-    def __init__(self):
-        self.session = next(get_session())
-        self.source_service = SourceService()
-        self.item_service = ResearchItemService()
-        self.author_service = AuthorService()
+    def __init__(self, session: Session):
+        # Utilisation de la session passée en argument pour la cohérence
+        self.session = session 
+        
+        # Récupération ou création de la source unique ArXiv
+        source = self.session.exec(select(Source).where(Source.name == "arxiv")).first()
+        if not source:
+            source = Source(name="arxiv", type="academic", base_url="https://arxiv.org/")
+            self.session.add(source)
+            self.session.commit()
+            self.session.refresh(source)
+        self.source_id = source.id
 
-        # Create/get source for ArXiv
-        self.arxiv_source = self.source_service.create(
-            self.session,
-            SourceCreate(name="arxiv", type="academic", base_url="https://arxiv.org/"),
-        )
+    def get_or_create_author(self, author_name: str):
+        """Récupère l'auteur s'il existe déjà, sinon le crée."""
+        # On utilise une clé simple basée sur le nom pour l'external_id
+        ext_id = f"arxiv_{author_name.replace(' ', '_').lower()}"
+        author = self.session.exec(select(Author).where(Author.external_id == ext_id)).first()
+        
+        if not author:
+            author = Author(full_name=author_name, external_id=ext_id)
+            self.session.add(author)
+            # On ne commit pas ici, on laisse process_articles le faire
+        return author
 
-    def exists(self, external_id: str) -> bool:
-        """Check if an article already exists in the DB"""
-        return (
-            self.item_service.get_by_external_id(
-                self.session, self.arxiv_source.id, external_id
+    def process_articles(self, articles: list) -> int:
+        """Traite et insère les articles arXiv."""
+        count = 0
+        for art in articles:
+            # 1. Extraction et conversion de la date (Indispensable pour SQLite)
+            # On cherche dans "published" (nom standard chez arXiv) ou "publication_date"
+            raw_pub_date = art.get("published") or art.get("publication_date")
+            clean_date = None
+
+            if raw_pub_date:
+                try:
+                    # On prend les 10 premiers caractères "YYYY-MM-DD"
+                    clean_date = datetime.strptime(raw_pub_date[:10], "%Y-%m-%d").date()
+                except (ValueError, TypeError):
+                    clean_date = None
+
+            # 2. Évite les doublons
+            existing = self.session.exec(
+                select(ResearchItem).where(ResearchItem.external_id == art["id"])
+            ).first()
+            if existing: 
+                continue
+
+            # 3. Création des auteurs associés
+            for name in art.get("authors", []):
+                self.get_or_create_author(name)
+
+            # 4. Mapping vers ResearchItem
+            item = ResearchItem(
+                source_id=self.source_id,
+                external_id=art["id"],
+                title=art["title"],
+                abstract=art.get("summary") or art.get("abstract"),
+                year=clean_date.year if clean_date else None,
+                publication_date=clean_date, # OBJET DATE ICI (pas de string !)
+                type="article",
+                is_open_access=True,
+                raw=art 
             )
-            is not None
-        )
+            
+            self.session.add(item)
+            count += 1
 
-    def create_authors(self, article: Dict[str, Any]) -> List[int]:
-        """Create authors in database and return their IDs"""
-        author_ids = []
-        for author_name in article["authors"]:
-            author_create = AuthorCreate(
-                full_name=author_name,
-                external_id=f"arxiv_{author_name.replace(' ', '_')}",
-                roles=["co_author"]
-                if author_name != article["authors"][0]
-                else ["first_author"],
-            )
-            author = self.author_service.create(self.session, author_create)
-            author_ids.append(author.id)
-        return author_ids
-
-    def create_research_item(self, article: Dict[str, Any], author_ids: List[int]):
-        """Create research item in database"""
-        research_item = ResearchItemCreate(
-            source_id=self.arxiv_source.id,
-            external_id=article["id"],
-            type="article",
-            title=article["title"],
-            abstract=article.get("summary"),
-            year=int(article["published"][:4]),
-            is_retracted=False,
-            is_open_access=True,
-            metrics={
-                "author_ids": author_ids,
-                "authors": article["authors"],
-                "summary": article["summary"],
-                "category": article["category"],
-                "published": article["published"],
-            },
-            raw=article,
-        )
-        return self.item_service.create(self.session, research_item)
-
-    def process_articles(self, articles: List[Dict[str, Any]]) -> int:
-        """Process a list of articles and insert them into the database"""
-        processed_count = 0
-
-        for article in articles:
-            ext_id = article["id"]
-
-            if self.exists(ext_id):
-                continue  # skip duplicates
-
-            # Create authors
-            author_ids = self.create_authors(article)
-
-            # Create research item
-            self.create_research_item(article, author_ids)
-            processed_count += 1
-
-        return processed_count
+        self.session.commit()
+        return count

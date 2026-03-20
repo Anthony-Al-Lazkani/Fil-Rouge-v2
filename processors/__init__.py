@@ -1,0 +1,3 @@
+"""
+ce fichier indique que le dossier processors est un "package", ce qui vous permet de faire des imports propres du type from processors.openalex_processor import ....
+"""

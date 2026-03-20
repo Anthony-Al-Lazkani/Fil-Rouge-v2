@@ -1,3 +1,7 @@
+"""
+Table pour archiver la source des données crawlées.
+"""
+
 from typing import Optional
 from sqlmodel import SQLModel, Field
 

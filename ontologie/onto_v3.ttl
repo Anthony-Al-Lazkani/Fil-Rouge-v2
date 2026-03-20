@@ -14,10 +14,20 @@
     rdfs:subClassOf :Acteur .
 
 :Chercheur rdf:type owl:Class ;
-    rdfs:subClassOf :Personne .
+    rdfs:subClassOf :Personne ;
+    owl:equivalentClass [
+        rdf:type owl:Restriction ;
+        owl:onProperty :aEcrit ;
+        owl:someValuesFrom :TravailDeRecherche
+    ] .
 
 :Entrepreneur rdf:type owl:Class ;
-    rdfs:subClassOf :Personne .
+    rdfs:subClassOf :Personne ;
+    owl:equivalentClass [
+        rdf:type owl:Restriction ;
+        owl:onProperty :aFonde ;
+        owl:someValuesFrom :Entreprise
+    ] .
 
 :Organisation rdf:type owl:Class ;
     rdfs:subClassOf :Acteur .
@@ -43,11 +53,12 @@
 :Pays rdf:type owl:Class .
 :Domaine rdf:type owl:Class .
 :Technologie rdf:type owl:Class .
-:Brevet rdf:type owl:Class .
 
 :RessourceDeConnaissance rdf:type owl:Class .
 :TravailDeRecherche rdf:type owl:Class ;
     rdfs:subClassOf :RessourceDeConnaissance .
+:Brevet rdf:type owl:Class ;
+    rdfs:subClassOf :RessourceDeConnaissance.
 
 ### --- PROPRIÉTÉS D'OBJET --- ###
 
@@ -70,7 +81,7 @@
 :dirige rdf:type owl:ObjectProperty ;
     rdfs:label "dirige" ;
     rdfs:domain :Personne ;
-    rdfs:range :Entreprise .
+    rdfs:range :Organisation .
 
 :aEcrit rdf:type owl:ObjectProperty ;
     rdfs:label "aEcrit" ;
@@ -102,8 +113,8 @@
 
 :estAffilieA rdf:type owl:ObjectProperty ;
     rdfs:label "estAffilié à" ;
-    rdfs:domain :Chercheur ;
-    rdfs:range :Université .
+    rdfs:domain :Personne ;
+    rdfs:range :Organisation .
 
 :aPourDomaine rdf:type owl:ObjectProperty ;
     rdfs:label "aPourDomaine" ;
@@ -123,7 +134,8 @@
 :estDeposePar rdf:type owl:ObjectProperty ;
     rdfs:label "estDéposéPar" ;
     rdfs:domain :Brevet ;
-    rdfs:range :Organisation .
+    rdfs:range [ rdf:type owl:Class ;
+                 owl:unionOf ( :Organisation :Personne ) ] .
 
 :favorise rdf:type owl:ObjectProperty ;
     rdfs:label "favorise" ;
@@ -149,7 +161,7 @@
 
 # Chercheur
 :aPourId rdf:type owl:DatatypeProperty ;
-    rdfs:domain :Chercheur ;
+    rdfs:domain :Personne ;
     rdfs:range xsd:string .
 
 :aPourOrcid rdf:type owl:DatatypeProperty ;

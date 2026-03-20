@@ -1,47 +1,39 @@
 """
-Cette table va enregistrer chaque relation unique. Elle répond à la question : "Qui travaillait où pour quel article ?"
-Conçu pour faciliter la construction d'ontologies.
+Table de pivot gérant les relations entre auteurs, publications et organisations.
+
+Features:
+- Centralisation des liens (Foreign Keys) entre ResearchItem et Entity.
+- Stockage du rôle spécifique de l'auteur pour chaque publication (ex: first_author).
+- Utilisation d'identifiants pivots (DOI, external_id) pour faciliter les jointures.
+- Conservation des données sources brutes via le champ JSON raw_affiliation_data.
 """
 
 from typing import Optional
 from sqlmodel import SQLModel, Field
 from sqlalchemy import Column, JSON
 
-
 class Affiliation(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    # =====================
-    # RESEARCH ITEM INFO
-    # =====================
-    research_item_id: int = Field(foreign_key="researchitem.id", index=True)
-    research_item_external_id: str  # OpenAlex, arXiv, etc.
-    research_item_doi: Optional[str] = None
-    research_item_title: Optional[str] = None
-    research_item_year: Optional[int] = None
-    research_item_source: Optional[str] = None  # openalex, arxiv, etc.
-
-    # =====================
-    # AUTHOR INFO
-    # =====================
-    author_external_id: str = Field(index=True)  # OpenAlex ID, ORCID, etc.
-    author_full_name: Optional[str] = None
-    author_orcid: Optional[str] = None
-
-    # =====================
-    # ENTITY INFO (unified: company, institution, research_lab, etc.)
-    # =====================
-    entity_id: Optional[int] = Field(foreign_key="entity.id", nullable=True, index=True)
-    entity_name: Optional[str] = None
-    entity_type: Optional[str] = (
-        None  # company, institution, research_lab, university, etc.
+    # --- LIENS TECHNIQUES (Pour la BDD) ---
+    # Changé en Optional[int] avec nullable=True pour accepter les leaders (ScanR)
+    research_item_id: Optional[int] = Field(
+        default=None, 
+        foreign_key="researchitem.id", 
+        index=True, 
+        nullable=True
     )
-    entity_external_id: Optional[str] = Field(index=True)
-    entity_ror: Optional[str] = Field(index=True)
-    entity_country_code: Optional[str] = None
+    entity_id: Optional[int] = Field(foreign_key="entity.id", nullable=True, index=True)
+    
+    # --- IDENTIFIANTS MÉTIER (Pour l'Ontologie & Lisibilité) ---
+    # Ces IDs permettent de comprendre la ligne sans faire de JOIN
+    author_external_id: str = Field(index=True) # ex: "https://openalex.org/A123"
+    entity_ror: Optional[str] = Field(default=None, index=True) # ID pivot mondial des orgs
+    research_item_doi: Optional[str] = Field(default=None, index=True)
 
-    # =====================
-    # ADDITIONAL AFFILIATION INFO
-    # =====================
-    role: Optional[str] = None  # first_author, corresponding_author, co_author
+    # --- NATURE DE LA RELATION ---
+    role: Optional[str] = None  # first_author, corresponding, etc.
+    source_name: Optional[str] = None # Savoir d'où vient cette affiliation (openalex, arxiv)
+
+    # --- DONNÉES BRUTES ---
     raw_affiliation_data: Optional[dict] = Field(default=None, sa_column=Column(JSON))

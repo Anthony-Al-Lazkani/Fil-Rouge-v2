@@ -1,13 +1,41 @@
+"""
+Crawler ScanR spécialisé dans l'écosystème français de la recherche et de l'innovation IA.
+
+Ce script interroge l'API Elasticsearch du portail ScanR (Ministère de l'Enseignement 
+Supérieur et de la Recherche) pour cartographier les forces vives de l'IA en France.
+
+Limitations Techniques :
+- API Elasticsearch : Utilise des requêtes POST avec des payloads JSON complexes.
+- Encodage : Nécessite un décodage manuel du texte brut pour préserver les caractères 
+  spéciaux (accents) souvent corrompus par un parsing JSON standard.
+- Identification : Privilégie le SIREN comme identifiant unique pour assurer 
+  l'interopérabilité avec les référentiels légaux (OpenCorporates).
+
+Variables de contrôle (Pilotables via le pipeline) :
+- query : Mot-clé de recherche (ex: "intelligence artificielle").
+- max_pages : Limite de profondeur de la collecte (20 résultats par page).
+
+Fonctionnement :
+Le script effectue une recherche plein texte, identifie les entreprises et laboratoires, 
+et extrait simultanément les liens vers leurs brevets déposés.
+"""
+
+
 import requests
 import time
+import json
 from typing import List, Dict, Any
 
-# La nouvelle URL identifiée via l'inspecteur réseau
 BASE_URL = "https://scanr.enseignementsup-recherche.gouv.fr/api/scanr-organizations/_search"
 
-def crawl_scanr_ai(query: str = "intelligence artificielle", max_pages: int = 6) -> List[Dict[str, Any]]:
+
+def crawl_scanr_ai(query: str = "intelligence artificielle", limit: int = 100) -> List[Dict[str, Any]]:
     all_results = []
     
+    size_per_page = 20
+    # On calcule le nombre de pages nécessaires pour atteindre la limite
+    max_pages = (limit // size_per_page) + (1 if limit % size_per_page > 0 else 0)
+
     # Payload standard pour Elasticsearch utilisé par ScanR
     payload = {
         "query": {
@@ -16,14 +44,14 @@ def crawl_scanr_ai(query: str = "intelligence artificielle", max_pages: int = 6)
                 "default_operator": "AND"
             }
         },
-        "size": 20,
-        "from": 0  # La pagination Elasticsearch utilise 'from' au lieu de 'page'
+        "size": size_per_page,
+        "from": 0 # 'from' au lieu de page
     }
 
     print(f"=== Crawling ScanR for: {query} ===")
 
     for page in range(max_pages):
-        payload["from"] = page * payload["size"]
+        payload["from"] = page * size_per_page
         
         try:
             response = requests.post(BASE_URL, json=payload)
@@ -32,7 +60,9 @@ def crawl_scanr_ai(query: str = "intelligence artificielle", max_pages: int = 6)
                 print(f"Erreur {response.status_code}: {response.text}")
                 break
                 
-            data = response.json()
+
+            raw_text = response.text
+            data = json.loads(raw_text) #pour éviter les bugs d'encodage
             
             # Dans Elasticsearch, les résultats sont dans hits -> hits
             hits = data.get("hits", {}).get("hits", [])
@@ -42,6 +72,9 @@ def crawl_scanr_ai(query: str = "intelligence artificielle", max_pages: int = 6)
                 break
 
             for hit in hits:
+                if len(all_results) >= limit:
+                    break
+
                 source = hit.get("_source", {})
                 
                 # 1. Pivot SIREN
@@ -65,11 +98,14 @@ def crawl_scanr_ai(query: str = "intelligence artificielle", max_pages: int = 6)
                     "founded_date": str(source.get("creationYear")) if source.get("creationYear") else None,
                     "operating_status": source.get("status"),
                     "is_ai_related": True,
-                    "patents": extracted_patents, # On passe la liste au processor
+                    "patents": extracted_patents,
                     "raw": source 
                 }
                 all_results.append(org_data)
            
+            if len(all_results) >= limit:
+                break
+
             print(f"Collecté {len(all_results)} organisations...", end="\r")
             time.sleep(0.5)
             
