@@ -25,6 +25,12 @@ uv run scripts/pipeline.py
 # Enrichir la base avec les scripts de peuplement:
 uv run ./scripts/pipeline_normalization.py
 
+# Créer le répertoire et charger l'ontologie dans GraphDB
+uv run ./grapDB/setup_graphdb.py
+uv run ./graphDB/import_ontoGraphdb.py
+
+# Insérer les instances dans GraphDB
+uv run ./graphDB/insertion_graphdb.py
 
 ## Architecture du Système
 Le projet est articulé autour de deux grands piliers:
