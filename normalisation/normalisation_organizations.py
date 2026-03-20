@@ -9,7 +9,7 @@ from models import ResearchItem, Entity, Affiliation, Author
 def run_org_linker():
     # Liste noire pour éviter les faux positifs du "Plein Texte"
     # Ces mots sont souvent présents dans les adresses sans être l'entité visée
-    BLACKLIST = {"BENCHMARK", "AI", "LAB", "BUSINESS", "FIGURE", "TRAINING", "IMPACT", "SCIENCE", "LABORATORY", "RESEARCH"}
+    BLACKLIST = {"BENCHMARK", "AI", "LAB", "BUSINESS", "FIGURE", "TRAINING", "IMPACT", "SCIENCE", "LABORATORY", "RESEARCH", "COMPANY", "UNIV", "UNIVERSITY"}
 
     print("=== LIAISON DES ORGANISATIONS (MODE RÉCUPÉRATION CIBLÉE) ===")
     with Session(engine) as session:
