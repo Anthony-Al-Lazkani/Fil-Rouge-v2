@@ -26,6 +26,7 @@ uv run scripts/pipeline.py
 uv run ./scripts/pipeline_normalization.py
 
 # Créer le répertoire et charger l'ontologie dans GraphDB
+Lancer GraphDB
 uv run ./grapDB/setup_graphdb.py
 uv run ./graphDB/import_ontoGraphdb.py
 
